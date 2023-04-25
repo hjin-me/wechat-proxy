@@ -1,3 +1,4 @@
+pub mod api;
 pub mod mp;
 
 use anyhow::Result;

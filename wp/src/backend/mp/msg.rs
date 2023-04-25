@@ -131,7 +131,7 @@ struct SendTextMsgReq {
     duplicate_check_interval: Option<i32>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct SendMsgResponse {
+pub struct SendMsgResponse {
     #[serde(rename = "errcode")]
     err_code: i32, //	返回码
     #[serde(rename = "errmsg")]

@@ -4,7 +4,7 @@ use axum::{
     body::Body as AxumBody,
     extract::Extension,
     http::{header::HeaderMap, Request},
-    routing::{any, get},
+    routing::{any, get, post},
     Router,
 };
 use clap::Parser;
@@ -16,15 +16,16 @@ use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{info, Level};
-use wp::api;
+use wp::backend::mp::MP;
 use wp::components::home::*;
 use wp::fallback::file_and_error_handler;
+use wp::{api, backend};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Number of times to greet
-    #[arg(short, long, default_value = "./config.toml")]
+    #[arg(short, long, default_value = "./wp/config.toml")]
     config: String,
     #[arg(short, long, default_value = "info")]
     log: String,
@@ -48,6 +49,12 @@ pub async fn serv() {
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: wp::backend::Config = toml::from_str(contents.as_str()).unwrap();
 
+    let mp = MP::new(
+        &serv_conf.corp_id,
+        &serv_conf.corp_secret,
+        &serv_conf.agent_id,
+    );
+
     api::register_server_functions();
 
     // Setting this to None means we'll be using cargo-leptos and its env vars
@@ -65,6 +72,7 @@ pub async fn serv() {
             "/api/*fn_name",
             get(server_fn_handler).post(server_fn_handler),
         )
+        .route("/cgi-bin/message/send", post(backend::api::message_send))
         .leptos_routes_with_context(
             leptos_options.clone(),
             routes,
@@ -74,6 +82,7 @@ pub async fn serv() {
         .fallback(file_and_error_handler)
         .layer(Extension(Arc::new(leptos_options)))
         .layer(Extension(Arc::new(serv_conf)))
+        .layer(Extension(Arc::new(mp)))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

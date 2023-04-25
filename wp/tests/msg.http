@@ -1,0 +1,13 @@
+POST http://127.0.0.1:3000/cgi-bin/message/send
+Content-Type: application/json
+
+{
+    "touser": "SongSong",
+    "msgtype" : "text",
+    "agentid" : 1,
+    "text" : {
+        "content" : "MEDIA_ID"
+    }
+}
+
+###

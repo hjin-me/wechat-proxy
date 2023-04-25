@@ -11,7 +11,7 @@ struct Token {
     content: String,
     expires_after: time::OffsetDateTime,
 }
-struct MP {
+pub struct MP {
     corp_id: String,
     corp_secret: String,
     agent_id: i64,
@@ -20,7 +20,7 @@ struct MP {
 }
 
 impl MP {
-    fn new(corp_id: &str, corp_secret: &str, agent_id: &i64) -> Self {
+    pub fn new(corp_id: &str, corp_secret: &str, agent_id: &i64) -> Self {
         Self {
             corp_id: corp_id.to_string(),
             corp_secret: corp_secret.to_string(),
