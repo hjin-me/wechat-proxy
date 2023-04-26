@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use leptos::ev::click;
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
 
@@ -15,10 +16,15 @@ struct UploadMediaResponse {
     #[serde(default, rename = "type")]
     media_type: String,
 }
-pub async fn upload_image(client: &reqwest::Client, token: &str, b: &[u8]) -> Result<String> {
+pub async fn media_upload(
+    client: &reqwest::Client,
+    media_type: &str,
+    token: &str,
+    b: &[u8],
+) -> Result<String> {
     let api = format!(
-        "https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={}&type=image",
-        token
+        "https://qyapi.weixin.qq.com/cgi-bin/media/upload?access_token={}&type={}",
+        token, media_type
     );
     let img = Part::bytes(b.to_owned())
         .file_name("qrcode.png")

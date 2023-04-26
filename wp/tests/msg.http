@@ -1,3 +1,13 @@
+POST http://127.0.0.1:3000/cgi-bin/media/upload?access_token=ACCESS_TOKEN&type=image
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="media"; filename="file.jpeg"; filelength=26607
+
+< ./img.jpeg
+--WebAppBoundary--
+
+###
 POST http://127.0.0.1:3000/cgi-bin/message/send
 Content-Type: application/json
 

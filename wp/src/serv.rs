@@ -47,7 +47,7 @@ pub async fn serv() {
     info!("Starting up {}, {:?}", &args.config, pwd);
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
-    let serv_conf: wp::backend::Config = toml::from_str(contents.as_str()).unwrap();
+    let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
 
     let mp = MP::new(
         &serv_conf.corp_id,
@@ -73,6 +73,7 @@ pub async fn serv() {
             get(server_fn_handler).post(server_fn_handler),
         )
         .route("/cgi-bin/message/send", post(backend::api::message_send))
+        .route("/cgi-bin/media/upload", post(backend::api::media_upload))
         .leptos_routes_with_context(
             leptos_options.clone(),
             routes,

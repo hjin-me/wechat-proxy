@@ -1830,6 +1830,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qstring"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d464fae65fff2680baf48019211ce37aaec0c78e9264c84a3e484717f965104e"
+dependencies = [
+ "percent-encoding",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3055,6 +3064,7 @@ dependencies = [
  "leptos_router",
  "mini-moka",
  "once_cell",
+ "qstring",
  "reqwest",
  "serde",
  "serde_json",
@@ -3067,6 +3077,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-wasm",
+ "url",
  "wasm-bindgen",
 ]
 
