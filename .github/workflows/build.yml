@@ -15,9 +15,9 @@ jobs:
         id: publish
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: ${{ vars.IMAGE_NAME }}
-          username: ${{ env.DOCKER_USERNAME }}
-          password: ${{ env.DOCKER_PASSWORD }}
+          name: ${{ secrets.IMAGE_NAME }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
           tag_names: true
           dockerfile: wp/Dockerfile
 
