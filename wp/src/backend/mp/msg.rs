@@ -95,7 +95,7 @@ struct SendImageMsgReq {
     pub to_tag: Option<String>,
     #[serde(rename = "msgtype")]
     pub msg_type: MsgType,
-    #[serde(rename = "agentid")]
+    #[serde(rename = "agentid", default)]
     pub agent_id: i64,
     image: ImageContent,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,7 +118,7 @@ struct SendTextMsgReq {
     pub to_tag: Option<String>,
     #[serde(rename = "msgtype")]
     pub msg_type: MsgType,
-    #[serde(rename = "agentid")]
+    #[serde(rename = "agentid", default)]
     pub agent_id: i64,
     pub text: TextContent,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -210,7 +210,6 @@ mod test {
             r#"{
   "touser": "abc",
   "msgtype": "text",
-  "agentid": 14,
   "text": {
     "content": "content"
   }
@@ -222,7 +221,6 @@ mod test {
             r#"{
   "touser": "abc",
     "msgtype" : "image",
-   "agentid" : 1,
    "image" : {
         "media_id" : "MEDIA_ID"
    }
@@ -233,7 +231,7 @@ mod test {
 
         assert_eq!(
             serde_json::to_string(&x).unwrap(),
-            r#"{"touser":"abc","msgtype":"image","agentid":1,"image":{"media_id":"MEDIA_ID"}}"#
+            r#"{"touser":"abc","msgtype":"image","agentid":0,"image":{"media_id":"MEDIA_ID"}}"#
         );
     }
 }
