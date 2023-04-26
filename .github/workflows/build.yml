@@ -1,0 +1,23 @@
+name: Build Image
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"             # Push events to v1 tag
+jobs:
+  build:
+    name: Build Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Publish to Registry
+        id: publish
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: ${{ secrets.IMAGE_NAME }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tag_names: true
+          dockerfile: wp/Dockerfile
+
