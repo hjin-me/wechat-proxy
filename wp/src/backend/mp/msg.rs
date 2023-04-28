@@ -6,9 +6,9 @@ use std::fmt::Display;
 enum MsgType {
     Text,
     Image,
-    // Voice,
-    // Video,
-    // File,
+    Voice,
+    Video,
+    File,
     // Textcard,
     // News,
     // Mpnews,
@@ -23,6 +23,9 @@ impl Display for MsgType {
         match self {
             MsgType::Text => write!(f, "text"),
             MsgType::Image => write!(f, "image"),
+            MsgType::Voice => write!(f, "voice"),
+            MsgType::Video => write!(f, "video"),
+            MsgType::File => write!(f, "file"),
         }
     }
 }
@@ -32,6 +35,9 @@ impl From<String> for MsgType {
         match s.as_str() {
             "text" => MsgType::Text,
             "image" => MsgType::Image,
+            "voice" => MsgType::Voice,
+            "video" => MsgType::Video,
+            "file" => MsgType::File,
             _ => MsgType::Text,
         }
     }
@@ -41,12 +47,18 @@ impl MsgType {
         match self {
             MsgType::Text => "text".to_string(),
             MsgType::Image => "image".to_string(),
+            MsgType::Voice => "voice".to_string(),
+            MsgType::Video => "video".to_string(),
+            MsgType::File => "file".to_string(),
         }
     }
     fn as_str(&self) -> &'static str {
         match self {
             MsgType::Text => "text",
             MsgType::Image => "image",
+            MsgType::Voice => "voice",
+            MsgType::Video => "video",
+            MsgType::File => "file",
         }
     }
 }
@@ -74,8 +86,12 @@ struct TextContent {
     content: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct ImageContent {
+struct MediaContent {
     media_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,53 +99,64 @@ struct ImageContent {
 enum SendMsgReq {
     TextMsgReq(SendTextMsgReq),
     ImageMsgReq(SendImageMsgReq),
+    VoiceMsgReq(SendVoiceMsgReq),
+    VideoMsgReq(SendVideoMsgReq),
+    FileMsgReq(SendFileMsgReq),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SendMsgCommon {
+    #[serde(rename = "touser", skip_serializing_if = "Option::is_none")]
+    pub to_user: Option<String>,
+    #[serde(rename = "toparty", skip_serializing_if = "Option::is_none")]
+    pub to_party: Option<String>,
+    #[serde(rename = "totag", skip_serializing_if = "Option::is_none")]
+    pub to_tag: Option<String>,
+    #[serde(rename = "msgtype")]
+    pub msg_type: MsgType,
+    #[serde(rename = "agentid", default)]
+    pub agent_id: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    safe: Option<i8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enable_id_trans: Option<i8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enable_duplicate_check: Option<i8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duplicate_check_interval: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SendImageMsgReq {
-    #[serde(rename = "touser", skip_serializing_if = "Option::is_none")]
-    pub to_user: Option<String>,
-    #[serde(rename = "toparty", skip_serializing_if = "Option::is_none")]
-    pub to_party: Option<String>,
-    #[serde(rename = "totag", skip_serializing_if = "Option::is_none")]
-    pub to_tag: Option<String>,
-    #[serde(rename = "msgtype")]
-    pub msg_type: MsgType,
-    #[serde(rename = "agentid", default)]
-    pub agent_id: i64,
-    image: ImageContent,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    safe: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    enable_id_trans: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    enable_duplicate_check: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    duplicate_check_interval: Option<i32>,
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    image: MediaContent,
 }
-
 #[derive(Serialize, Deserialize, Debug)]
 struct SendTextMsgReq {
-    #[serde(rename = "touser", skip_serializing_if = "Option::is_none")]
-    pub to_user: Option<String>,
-    #[serde(rename = "toparty", skip_serializing_if = "Option::is_none")]
-    pub to_party: Option<String>,
-    #[serde(rename = "totag", skip_serializing_if = "Option::is_none")]
-    pub to_tag: Option<String>,
-    #[serde(rename = "msgtype")]
-    pub msg_type: MsgType,
-    #[serde(rename = "agentid", default)]
-    pub agent_id: i64,
-    pub text: TextContent,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    safe: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    enable_id_trans: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    enable_duplicate_check: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    duplicate_check_interval: Option<i32>,
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    text: TextContent,
 }
+#[derive(Serialize, Deserialize, Debug)]
+struct SendVoiceMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    voice: MediaContent,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct SendVideoMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    video: MediaContent,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct SendFileMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    file: MediaContent,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SendMsgResponse {
     #[serde(rename = "errcode")]
@@ -151,12 +178,29 @@ pub async fn send_msg(
 ) -> Result<()> {
     let body = match serde_json::from_str::<SendMsgReq>(msg)? {
         SendMsgReq::TextMsgReq(mut q) => {
-            q.agent_id = agent_id.clone();
+            q.common.msg_type = MsgType::Text;
+            q.common.agent_id = agent_id.clone();
             SendMsgReq::TextMsgReq(q)
         }
         SendMsgReq::ImageMsgReq(mut q) => {
-            q.agent_id = agent_id.clone();
+            q.common.msg_type = MsgType::Image;
+            q.common.agent_id = agent_id.clone();
             SendMsgReq::ImageMsgReq(q)
+        }
+        SendMsgReq::VoiceMsgReq(mut q) => {
+            q.common.msg_type = MsgType::Voice;
+            q.common.agent_id = agent_id.clone();
+            SendMsgReq::VoiceMsgReq(q)
+        }
+        SendMsgReq::VideoMsgReq(mut q) => {
+            q.common.msg_type = MsgType::Video;
+            q.common.agent_id = agent_id.clone();
+            SendMsgReq::VideoMsgReq(q)
+        }
+        SendMsgReq::FileMsgReq(mut q) => {
+            q.common.msg_type = MsgType::File;
+            q.common.agent_id = agent_id.clone();
+            SendMsgReq::FileMsgReq(q)
         }
     };
 
@@ -188,6 +232,8 @@ mod test {
     use super::*;
     use crate::backend::mp::client::get_access_token;
     use crate::backend::Config;
+    use assert_json_diff::assert_json_eq;
+    use serde_json::json;
     use std::fs;
 
     #[tokio::test]
@@ -205,33 +251,85 @@ mod test {
     fn test_json() {
         dbg!(serde_json::from_str::<MsgType>("\"image\"").unwrap());
         dbg!(serde_json::to_string(&MsgType::Image).unwrap());
-
-        dbg!(serde_json::from_str::<SendMsgReq>(
-            r#"{
-  "touser": "abc",
-  "msgtype": "text",
-  "text": {
-    "content": "content"
+        let cases = vec![
+            (
+                r#"{ "touser": "abc", "msgtype": "text", "text": { "content": "content" }}"#,
+                r#"{"touser":"abc","msgtype":"text","agentid":0,"text":{"content":"content"}}"#,
+            ),
+            (
+                r#"{ "touser": "abc", "msgtype" : "image", "image" : { "media_id" : "MEDIA_ID" }}"#,
+                r#"{"touser":"abc","msgtype":"image","agentid":0,"image":{"media_id":"MEDIA_ID"}}"#,
+            ),
+            (
+                r#"{
+  "touser": "UserID1|UserID3",
+  "toparty": "PartyID1|PartyID2",
+  "totag": "TagID1 | TagID2",
+  "msgtype": "voice",
+  "agentid": 3,
+  "voice": {
+    "media_id": "MEDIA_ID"
+  },
+  "enable_duplicate_check": 0,
+  "duplicate_check_interval": 1800
+}"#,
+                r#"{"touser":"UserID1|UserID3","toparty":"PartyID1|PartyID2","totag":"TagID1 | TagID2","msgtype":"voice","agentid":3,"enable_duplicate_check":0,"duplicate_check_interval":1800,"voice":{"media_id":"MEDIA_ID"}}"#,
+            ),
+            (
+                r#"{
+   "touser" : "UserIID3",
+   "toparty" : "ParrtyID2",
+   "totag" : "TaID2",
+   "msgtype" : "video",
+   "agentid" : 1,
+   "video" : {
+        "media_id" : "MEDIA_ID",
+        "title" : "Title",
+       "description" : "Description"
+   },
+   "safe":0,
+   "enable_duplicate_check": 0,
+   "duplicate_check_interval": 1800
+}"#,
+                r#"{
+  "touser": "UserIID3",
+  "toparty": "ParrtyID2",
+  "totag": "TaID2",
+  "msgtype": "video",
+  "agentid": 1,
+  "safe": 0,
+  "enable_duplicate_check": 0,
+  "duplicate_check_interval": 1800,
+  "video": {
+    "media_id": "MEDIA_ID",
+    "title": "Title",
+    "description": "Description"
   }
-}
-        "#
-        )
-        .unwrap());
-        let x = dbg!(serde_json::from_str::<SendMsgReq>(
-            r#"{
-  "touser": "abc",
-    "msgtype" : "image",
-   "image" : {
-        "media_id" : "MEDIA_ID"
-   }
-}
-        "#
-        )
-        .unwrap());
-
-        assert_eq!(
-            serde_json::to_string(&x).unwrap(),
-            r#"{"touser":"abc","msgtype":"image","agentid":0,"image":{"media_id":"MEDIA_ID"}}"#
-        );
+}"#,
+            ),
+            (
+                r#"{
+   "touser" : "UserID1",
+   "toparty" : "PartyID1|",
+   "totag" : "TagID1 | TagID2",
+   "msgtype" : "file",
+   "agentid" : 1,
+   "file" : {
+        "media_id" : "1Yv-zXfHjSjU-7LH-GwtYqDGS-zz6w22KmWAT5COgP7o"
+   },
+   "safe":0,
+   "enable_duplicate_check": 0,
+   "duplicate_check_interval": 1800
+}"#,
+                r#"{"touser":"UserID1","toparty":"PartyID1|","totag":"TagID1 | TagID2","msgtype":"file","agentid":1,"safe":0,"enable_duplicate_check":0,"duplicate_check_interval":1800,"file":{"media_id":"1Yv-zXfHjSjU-7LH-GwtYqDGS-zz6w22KmWAT5COgP7o"}}"#,
+            ),
+        ];
+        for x in cases {
+            let t = serde_json::from_str::<SendMsgReq>(x.0).unwrap();
+            let s = serde_json::to_string(&t).unwrap();
+            let vl = serde_json::from_str::<serde_json::Value>(&s).unwrap();
+            let vr = serde_json::from_str::<serde_json::Value>(x.1).unwrap();
+            assert_json_eq!(vl, vr);
+        }
     }
 }

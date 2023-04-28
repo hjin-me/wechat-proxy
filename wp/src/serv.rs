@@ -74,6 +74,17 @@ pub async fn serv() {
         )
         .route("/cgi-bin/message/send", post(backend::api::message_send))
         .route("/cgi-bin/media/upload", post(backend::api::media_upload))
+        .route(
+            "/cgi-bin/gettoken",
+            get(|| async {
+                r#"{
+   "errcode": 0,
+   "errmsg": "ok",
+   "access_token": "thisisfaketoken",
+   "expires_in": 7200
+}"#
+            }),
+        )
         .leptos_routes_with_context(
             leptos_options.clone(),
             routes,
@@ -92,7 +103,7 @@ pub async fn serv() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    log!("listening on http://{}", &addr);
+    info!("listening on http://{}", &addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
