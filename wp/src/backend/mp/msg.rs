@@ -163,19 +163,20 @@ pub struct SendMsgResponse {
     err_code: i32, //	返回码
     #[serde(rename = "errmsg")]
     err_msg: String, //	对返回码的文本描述内容
-                     // invaliduser	不合法的userid，不区分大小写，统一转为小写
-                     // invalidparty	不合法的partyid
-                     // invalidtag	不合法的标签id
-                     // unlicenseduser	没有基础接口许可(包含已过期)的userid
-                     // msgid	消息id，用于撤回应用消息
-                     // response_code	仅消息类型为“按钮交互型”，“投票选择型”和“多项选择型”的模板卡片消息返回，应用可使用response_code调用更新模版卡片消息接口，72小时内有效，且只能使用一次
+    // invaliduser	不合法的userid，不区分大小写，统一转为小写
+    // invalidparty	不合法的partyid
+    // invalidtag	不合法的标签id
+    // unlicenseduser	没有基础接口许可(包含已过期)的userid
+    #[serde(rename = "msgid")]
+    msg_id: Option<String>, //消息id，用于撤回应用消息
+                            // response_code	仅消息类型为“按钮交互型”，“投票选择型”和“多项选择型”的模板卡片消息返回，应用可使用response_code调用更新模版卡片消息接口，72小时内有效，且只能使用一次
 }
 pub async fn send_msg(
     client: &reqwest::Client,
     token: &str,
     agent_id: &i64,
     msg: &str,
-) -> Result<()> {
+) -> Result<String> {
     let body = match serde_json::from_str::<SendMsgReq>(msg)? {
         SendMsgReq::TextMsgReq(mut q) => {
             q.common.msg_type = MsgType::Text;
@@ -219,6 +220,32 @@ pub async fn send_msg(
     if res.err_code != 0 {
         return Err(anyhow!(
             "发送消息失败 error: [{}] {}",
+            res.err_code,
+            res.err_msg
+        ));
+    }
+
+    Ok(res.msg_id.unwrap_or("".to_string()))
+}
+
+pub async fn recall_msg(client: &reqwest::Client, token: &str, msg_id: &str) -> Result<()> {
+    let body = serde_json::json!({ "msgid": msg_id });
+
+    let api = format!(
+        "https://qyapi.weixin.qq.com/cgi-bin/message/recall?access_token={}",
+        token
+    );
+
+    let res = client
+        .post(api)
+        .body(serde_json::to_string(&body)?)
+        .send()
+        .await?
+        .json::<SendMsgResponse>()
+        .await?;
+    if res.err_code != 0 {
+        return Err(anyhow!(
+            "撤回消息失败 error: [{}] {}",
             res.err_code,
             res.err_msg
         ));

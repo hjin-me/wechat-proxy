@@ -56,9 +56,14 @@ impl MP {
         Ok(r.content.clone())
     }
 
-    pub async fn message_send(&self, msg: &str) -> Result<()> {
+    pub async fn message_send(&self, msg: &str) -> Result<String> {
         let token = self.get_token().await?;
-        msg::send_msg(&self.client, &token, &self.agent_id, msg).await?;
+        let msg_id = msg::send_msg(&self.client, &token, &self.agent_id, msg).await?;
+        Ok(msg_id)
+    }
+    pub async fn message_recall(&self, msg_id: &str) -> Result<()> {
+        let token = self.get_token().await?;
+        msg::recall_msg(&self.client, &token, msg_id).await?;
         Ok(())
     }
     pub async fn proxy(
@@ -171,7 +176,9 @@ mod test {
             &serv_conf.corp_secret,
             &serv_conf.agent_id,
         );
-        mp.message_send(msg).await?;
+        let msg_id = dbg!(mp.message_send(msg).await?);
+
+        dbg!(mp.message_recall(&msg_id).await?);
         Ok(())
     }
 }

@@ -75,6 +75,10 @@ pub async fn serv() {
         .route("/cgi-bin/message/send", post(backend::api::message_send))
         .route("/cgi-bin/media/upload", post(backend::api::media_upload))
         .route(
+            "/cgi-bin/message/recall",
+            post(backend::api::message_recall),
+        )
+        .route(
             "/cgi-bin/gettoken",
             get(|| async {
                 r#"{

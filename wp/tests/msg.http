@@ -21,3 +21,11 @@ Content-Type: application/json
 }
 
 ###
+POST http://127.0.0.1:3000/cgi-bin/message/recall
+Content-Type: application/json
+
+{
+    "msgid" : "B8suv-5ipZqQqMdXNRKIKjYqx30cHnny-W2vw4zg951y60Q1BbNJXvNsngurTOWAYosoIoU7sgRQyiTIkw_lfA"
+}
+
+###
