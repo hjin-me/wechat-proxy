@@ -13,7 +13,7 @@ use std::sync::Arc;
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
     let msg = String::from_utf8(b.to_vec()).unwrap();
     match mp.message_send(&msg).await {
-        Ok(msg_id) => Json(json!({"errcode" : 0, "errmsg" : "ok", "msg_id" : msg_id})),
+        Ok(msg_id) => Json(json!({"errcode" : 0, "errmsg" : "ok", "msgid" : msg_id})),
         Err(e) => Json(json!({"errcode" : -1, "errmsg" : e.to_string()})),
     }
 }
