@@ -29,3 +29,19 @@ Content-Type: application/json
 }
 
 ###
+GET http://127.0.0.1:3000/wccb?msg_signature=ASDFQWEXZCVAQFASDFASDFSS&timestamp=13500001234&nonce=123412323&echostr=ENCRYPT_STR
+Content-Type: application/json
+
+{
+    "msgid" : "B8suv-5ipZqQqMdXNRKIKjYqx30cHnny-W2vw4zg951y60Q1BbNJXvNsngurTOWAYosoIoU7sgRQyiTIkw_lfA"
+}
+
+###
+POST http://127.0.0.1:3000/wccb?msg_signature=ASDFQWEXZCVAQFASDFASDFSS&timestamp=13500001234&nonce=123412323
+Content-Type: application/json
+
+{
+    "msgid" : "B8suv-5ipZqQqMdXNRKIKjYqx30cHnny-W2vw4zg951y60Q1BbNJXvNsngurTOWAYosoIoU7sgRQyiTIkw_lfA"
+}
+
+###

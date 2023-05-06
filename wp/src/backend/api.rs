@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
     let msg = String::from_utf8(b.to_vec()).unwrap();
@@ -59,4 +60,27 @@ pub async fn media_upload(
         )],
         s,
     )
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidateQuery {
+    msg_signature: String, //	是	企业微信加密签名，msg_signature结合了企业填写的token、请求中的timestamp、nonce参数、加密的消息体
+    timestamp: i64,        //是	时间戳
+    nonce: i64,            //是	随机数
+    #[serde(rename = "echostr", default)]
+    echo_str: String, //是	加密的字符串。需要解密得到消息内容明文，解密后有random、msg_len、msg、receiveid四个字段，其中msg即为消息内容明文
+}
+
+pub async fn validate_url(
+    // Extension(mp): Extension<Arc<MP>>,
+    Query(q): Query<ValidateQuery>,
+) -> impl IntoResponse {
+    info!("validate_url: {:?}", q);
+    q.echo_str
+}
+
+pub async fn on_message(Query(q): Query<ValidateQuery>, b: Bytes) -> impl IntoResponse {
+    info!("on_message: q = {:?}", q);
+    info!("on_message: body = {:?}", b);
+    "ok"
 }
