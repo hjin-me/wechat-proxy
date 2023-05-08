@@ -20,4 +20,5 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
           tag_names: true
           dockerfile: wp/Dockerfile
+          snapshot: true
 
