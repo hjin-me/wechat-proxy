@@ -10,37 +10,14 @@ fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String {
     for value in sort_arr {
         buffer.push_str(value);
     }
+
+    // dbg!(buffer.as_str());
     let mut sha = sha1::Sha1::new();
 
     sha.update(buffer.as_bytes());
     let signature = sha.finalize();
     format!("{:x}", signature)
 }
-
-// func (self *WXBizMsgCrypt) VerifyURL(msg_signature, timestamp, nonce, echostr string) ([]byte, *CryptError) {
-// 	signature := self.calSignature(timestamp, nonce, echostr)
-//
-// 	if strings.Compare(signature, msg_signature) != 0 {
-// 		return nil, NewCryptError(ValidateSignatureError, "signature not equal")
-// 	}
-//
-// 	plaintext, err := self.cbcDecrypter(echostr)
-// 	if nil != err {
-// 		return nil, err
-// 	}
-//
-// 	_, _, msg, receiver_id, err := self.ParsePlainText(plaintext)
-// 	if nil != err {
-// 		return nil, err
-// 	}
-//
-// 	if len(self.receiver_id) > 0 && strings.Compare(string(receiver_id), self.receiver_id) != 0 {
-// 		fmt.Println(string(receiver_id), self.receiver_id, len(receiver_id), len(self.receiver_id))
-// 		return nil, NewCryptError(ValidateCorpidError, "receiver_id is not equil")
-// 	}
-//
-// 	return msg, nil
-// }
 
 pub fn verify_url(
     token: &str,
@@ -54,7 +31,7 @@ pub fn verify_url(
     if signature != msg_signature {
         return Err("signature not equal".to_string());
     }
-    let plaintext = cbc_decrypter(&echo_str.as_bytes().to_vec(), &encoding_aes_key)?;
+    let plaintext = cbc_decrypt(&encoding_aes_key, &echo_str.as_bytes().to_vec())?;
     let (msg, receiver_id) = parse_plain_text(&plaintext)?;
     if receiver_id != "" {
         return Err("receiver_id is not equil".to_string());
@@ -64,7 +41,9 @@ pub fn verify_url(
 
 fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String), String> {
     let random = &plaintext[..16];
+    debug!("random {:?}", random);
     let msg_len = u32::from_be_bytes([plaintext[16], plaintext[17], plaintext[18], plaintext[19]]);
+    debug!("msg_len {:?}", msg_len);
     let msg = &plaintext[20..(20 + msg_len as usize)];
     let receiver_id = &plaintext[(20 + msg_len as usize)..];
     Ok((
@@ -77,13 +56,16 @@ use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvI
 use base64::alphabet::STANDARD;
 use base64::engine::general_purpose::PAD;
 use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
+use byteorder::{BigEndian, NativeEndian, WriteBytesExt};
 use hex_literal::hex;
+use rand::Rng;
+use tracing::debug;
 
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 // aes decrypt with cbc
-fn cbc_decrypter(data: &Vec<u8>, encoding_aeskey: &str) -> Result<Vec<u8>, String> {
-    let key = base64_decode(&format!("{}=", encoding_aeskey))
+fn cbc_decrypt(encoding_aes_key: &str, data: &Vec<u8>) -> Result<Vec<u8>, String> {
+    let key = base64_decode(&format!("{}=", encoding_aes_key))
         .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
     let iv = &key[..16];
     let key = &key[..32];
@@ -101,6 +83,29 @@ fn cbc_decrypter(data: &Vec<u8>, encoding_aeskey: &str) -> Result<Vec<u8>, Strin
         .map_err(|e| format!("decrypt: {}", e.to_string()))?;
     Ok(r.to_vec())
 }
+
+fn cbc_encrypt(encoding_aes_key: &str, plaintext: &str, agent_id: &str) -> Result<String, String> {
+    let mut wtr = get_random_string().into_bytes();
+    wtr.write_u32::<BigEndian>((plaintext.len() as u32))
+        .map_err(|e| format!("write_u32: {}", e.to_string()))?;
+    wtr.extend(plaintext.bytes());
+    wtr.extend(agent_id.bytes());
+
+    let key = base64_decode(&format!("{}=", encoding_aes_key))
+        .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
+    let iv = &key[..16];
+    let key = &key[..32];
+
+    let mut cipher = Aes256CbcEnc::new_from_slices(key, iv)
+        .map_err(|e| format!("enc new_from_slices {}", e.to_string()))?;
+
+    let mut buffer = vec![0u8; (wtr.len() + 15) / 16 * 16];
+    let r = cipher
+        .encrypt_padded_b2b_mut::<Pkcs7>(wtr.as_slice(), &mut buffer)
+        .map_err(|e| format!("encrypt: {}", e.to_string()))?;
+
+    Ok(base64::engine::general_purpose::STANDARD.encode(&r))
+}
 const G: GeneralPurpose = GeneralPurpose::new(
     &STANDARD,
     GeneralPurposeConfig::new().with_decode_allow_trailing_bits(true),
@@ -108,7 +113,20 @@ const G: GeneralPurpose = GeneralPurpose::new(
 fn base64_decode(b: &str) -> Result<Vec<u8>> {
     Ok(G.decode(b)?)
 }
-
+fn get_random_string() -> String {
+    if cfg!(test) {
+        "1234567890123456".to_owned()
+    } else {
+        use rand::distributions::Alphanumeric;
+        String::from_utf8(
+            rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(16)
+                .collect(),
+        )
+        .unwrap()
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
@@ -135,7 +153,7 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(verify_echo_str)
             .unwrap();
-        let r = cbc_decrypter(&v, encoding_aes_key).unwrap();
+        let r = cbc_decrypt(encoding_aes_key, &v).unwrap();
         let (m, r) = dbg!(parse_plain_text(&r).unwrap());
         assert_eq!(r, receiver_id);
         assert_eq!("1616140317555161061", m.as_str());
@@ -155,7 +173,24 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(msg_encrypt)
             .unwrap();
-        // dbg!(cbc_decrypter(&v, encoding_aes_key).unwrap());
+        let signature = calc_signature("test", "123456", "test", "rust");
+        assert_eq!("d6056f2bb3ad3e30f4afa5ef90cc9ddcdc7b7b27", signature);
+
+        let token = "QDG6eK";
+        let receiver_id = "wx49f0ab532d5d035a";
+        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
+        let verify_timestamp = "1411443780";
+        let verify_nonce = "437374425";
+        let verify_echo_str = "4ByGGj+sVCYcvGeQYhaKIk1o0pQRNbRjxybjTGblXrBaXlTXeOo1+bXFXDQQb1o6co6Yh9Bv41n7hOchLF6p+Q==";
+
+        let v = base64::engine::general_purpose::STANDARD
+            .decode(verify_echo_str)
+            .unwrap();
+        let r = cbc_decrypt(encoding_aes_key, &v).unwrap();
+        let (m, r) = dbg!(parse_plain_text(&r).unwrap());
+        assert_eq!(r, receiver_id);
+        assert_eq!("5927782489442352469", m.as_str());
     }
 
     #[test]
@@ -171,12 +206,23 @@ mod test {
     }
 
     #[test]
-    fn test_decode() -> Result<()> {
-        let encoding_aes_key = "IJUiXNpvGbODwKEBSEsAeOAPAhkqHqNCF6g19t9wfg2";
-        dbg!(env::current_dir()?);
-        let b = fs::read("./src/backend/mp/data.json")?;
-        let r = cbc_decrypter(&b, encoding_aes_key).unwrap();
-        dbg!(String::from_utf8_lossy(&r));
+    fn test_decrypt() {
+        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let r = cbc_decrypt(
+            encoding_aes_key,
+            &base64_decode("9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=").unwrap(),
+        )
+        .unwrap();
+        dbg!(String::from_utf8(r.clone()).unwrap());
+        let (t, r) = parse_plain_text(&r).unwrap();
+        assert_eq!("test", &t);
+    }
+
+    #[test]
+    fn test_encrypt() -> Result<()> {
+        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let encrypted = cbc_encrypt(encoding_aes_key, "test", "rust").unwrap();
+        assert_eq!("9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=", &encrypted);
         Ok(())
     }
 }

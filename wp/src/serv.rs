@@ -45,6 +45,7 @@ pub async fn serv() {
     // get pwd
     let pwd = std::env::current_dir().unwrap();
     info!("Starting up {}, {:?}", &args.config, pwd);
+    info!("Version: {}", env!("COMMIT_ID"));
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
