@@ -78,20 +78,24 @@ pub async fn validate_url(
     Query(q): Query<ValidateQuery>,
 ) -> impl IntoResponse {
     info!("validate_url: {:?}", q);
-    let echo = verify_url(
+    match verify_url(
         &conf.token,
+        &q.msg_signature,
         q.timestamp.to_string().as_str(),
         q.nonce.to_string().as_str(),
-        &q.msg_signature,
         &q.echo_str,
         &conf.encoded_aes_key,
-    )
-    .unwrap();
-    echo
+        &conf.corp_id,
+    ) {
+        Ok(echo) => echo,
+        Err(e) => {
+            info!("validate_url: {:?}", e);
+            "error".to_string()
+        }
+    }
 }
 
 pub async fn on_message(Query(q): Query<ValidateQuery>, b: Bytes) -> impl IntoResponse {
-
     info!("on_message: q = {:?}", q);
     info!("on_message: body = {:?}", b);
     "ok"

@@ -1,3 +1,4 @@
+pub mod callback;
 mod client;
 pub mod crypt;
 mod media;

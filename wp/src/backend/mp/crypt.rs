@@ -3,7 +3,7 @@ use base64::Engine;
 use sha1::Digest;
 
 // 计算签名
-fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String {
+pub fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String {
     let mut sort_arr = vec![token, ts, nonce, data];
     sort_arr.sort();
     let mut buffer = String::new();
@@ -26,14 +26,18 @@ pub fn verify_url(
     nonce: &str,
     echo_str: &str,
     encoding_aes_key: &str,
+    corp_id: &str,
 ) -> Result<String, String> {
     let signature = calc_signature(&token, &timestamp, &nonce, &echo_str);
     if signature != msg_signature {
         return Err("signature not equal".to_string());
     }
-    let plaintext = cbc_decrypt(&encoding_aes_key, &echo_str.as_bytes().to_vec())?;
+    let es = base64::engine::general_purpose::STANDARD
+        .decode(&echo_str)
+        .map_err(|e| format!("base64 decode: {}", e.to_string()))?;
+    let plaintext = cbc_decrypt(&encoding_aes_key, &es)?;
     let (msg, receiver_id) = parse_plain_text(&plaintext)?;
-    if receiver_id != "" {
+    if receiver_id != corp_id {
         return Err("receiver_id is not equil".to_string());
     }
     Ok(msg)
@@ -69,11 +73,8 @@ fn cbc_decrypt(encoding_aes_key: &str, data: &Vec<u8>) -> Result<Vec<u8>, String
         .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
     let iv = &key[..16];
     let key = &key[..32];
-    // let mut data = base64::engine::general_purpose::STANDARD
-    //     .decode(data)
-    //     .map_err(|e| format!("base64 data: {}", e.to_string()))?;
-    let data = data.clone();
 
+    let data = data.clone();
     let mut cipher = Aes256CbcDec::new_from_slices(key, iv)
         .map_err(|e| format!("new_from_slices {}", e.to_string()))?;
     let mut buffer = vec![0u8; data.len()];
@@ -84,12 +85,12 @@ fn cbc_decrypt(encoding_aes_key: &str, data: &Vec<u8>) -> Result<Vec<u8>, String
     Ok(r.to_vec())
 }
 
-fn cbc_encrypt(encoding_aes_key: &str, plaintext: &str, agent_id: &str) -> Result<String, String> {
+fn cbc_encrypt(encoding_aes_key: &str, plaintext: &str, corp_id: &str) -> Result<String, String> {
     let mut wtr = get_random_string().into_bytes();
     wtr.write_u32::<BigEndian>((plaintext.len() as u32))
         .map_err(|e| format!("write_u32: {}", e.to_string()))?;
     wtr.extend(plaintext.bytes());
-    wtr.extend(agent_id.bytes());
+    wtr.extend(corp_id.bytes());
 
     let key = base64_decode(&format!("{}=", encoding_aes_key))
         .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
@@ -162,8 +163,8 @@ mod test {
         let signature = "477715d11cdb4164915debcba66cb864d751f3e6";
         let timestamps = "1409659813";
         let nonce = "1372623149";
-        let msg_encrypt = "RypEvHKD8QQKFhvQ6QleEB4J58tiPdvo+rtK1I9qca6aM/wvqnLSV5zEPeusUiX5L5X/0lWfrf0QADHHhGd3QczcdCUpj911L3vg3W/sYYvuJTs3TUUkSUXxaccAS0qhxchrRYt66wiSpGLYL42aM6A8dTT+6k4aSknmPj48kzJs8qLjvd4Xgpue06DOdnLxAUHzM6+kDZ+HMZfJYuR+LtwGc2hgf5gsijff0ekUNXZiqATP7PF5mZxZ3Izoun1s4zG4LUMnvw2r+KqCKIw+3IQH03v+BCA9nMELNqbSf6tiWSrXJB3LAVGUcallcrw8V2t9EL4EhzJWrQUax5wLVMNS0+rUPA3k22Ncx4XXZS9o0MBH27Bo6BpNelZpS+/uh9KsNlY6bHCmJU9p8g7m3fVKn28H3KDYA5Pl/T8Z1ptDAVe0lXdQ2YoyyH2uyPIGHBZZIs2pDBS8R07+qN+E7Q==";
         let encoding_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
+        let msg_encrypt = "RypEvHKD8QQKFhvQ6QleEB4J58tiPdvo+rtK1I9qca6aM/wvqnLSV5zEPeusUiX5L5X/0lWfrf0QADHHhGd3QczcdCUpj911L3vg3W/sYYvuJTs3TUUkSUXxaccAS0qhxchrRYt66wiSpGLYL42aM6A8dTT+6k4aSknmPj48kzJs8qLjvd4Xgpue06DOdnLxAUHzM6+kDZ+HMZfJYuR+LtwGc2hgf5gsijff0ekUNXZiqATP7PF5mZxZ3Izoun1s4zG4LUMnvw2r+KqCKIw+3IQH03v+BCA9nMELNqbSf6tiWSrXJB3LAVGUcallcrw8V2t9EL4EhzJWrQUax5wLVMNS0+rUPA3k22Ncx4XXZS9o0MBH27Bo6BpNelZpS+/uh9KsNlY6bHCmJU9p8g7m3fVKn28H3KDYA5Pl/T8Z1ptDAVe0lXdQ2YoyyH2uyPIGHBZZIs2pDBS8R07+qN+E7Q==";
 
         assert_eq!(
             signature,
