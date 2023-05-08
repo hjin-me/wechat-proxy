@@ -9,4 +9,6 @@ pub struct Config {
     pub corp_id: String,
     pub corp_secret: String,
     pub agent_id: i64,
+    pub encoded_aes_key: String,
+    pub token: String,
 }

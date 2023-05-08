@@ -1,5 +1,5 @@
 mod client;
-mod crypt;
+pub mod crypt;
 mod media;
 mod msg;
 

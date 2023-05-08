@@ -42,19 +42,19 @@ fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String {
 // 	return msg, nil
 // }
 
-fn verify_url(
+pub fn verify_url(
     token: &str,
     msg_signature: &str,
     timestamp: &str,
     nonce: &str,
     echo_str: &str,
-    encoding_aeskey: &str,
+    encoding_aes_key: &str,
 ) -> Result<String, String> {
     let signature = calc_signature(&token, &timestamp, &nonce, &echo_str);
     if signature != msg_signature {
         return Err("signature not equal".to_string());
     }
-    let plaintext = cbc_decrypter(&echo_str.as_bytes().to_vec(), &encoding_aeskey)?;
+    let plaintext = cbc_decrypter(&echo_str.as_bytes().to_vec(), &encoding_aes_key)?;
     let (msg, receiver_id) = parse_plain_text(&plaintext)?;
     if receiver_id != "" {
         return Err("receiver_id is not equil".to_string());
@@ -152,9 +152,9 @@ mod test {
             calc_signature(token, timestamps, nonce, msg_encrypt)
         );
 
-        // let v = base64::engine::general_purpose::STANDARD
-        //     .decode(msg_encrypt)
-        //     .unwrap();
+        let v = base64::engine::general_purpose::STANDARD
+            .decode(msg_encrypt)
+            .unwrap();
         // dbg!(cbc_decrypter(&v, encoding_aes_key).unwrap());
     }
 

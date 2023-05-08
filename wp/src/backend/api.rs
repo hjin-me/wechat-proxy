@@ -1,4 +1,6 @@
+use crate::backend::mp::crypt::verify_url;
 use crate::backend::mp::MP;
+use crate::backend::Config;
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query};
 use axum::http::header::HeaderMap;
@@ -72,14 +74,24 @@ pub struct ValidateQuery {
 }
 
 pub async fn validate_url(
-    // Extension(mp): Extension<Arc<MP>>,
+    Extension(conf): Extension<Arc<Config>>,
     Query(q): Query<ValidateQuery>,
 ) -> impl IntoResponse {
     info!("validate_url: {:?}", q);
-    q.echo_str
+    let echo = verify_url(
+        &conf.token,
+        q.timestamp.to_string().as_str(),
+        q.nonce.to_string().as_str(),
+        &q.msg_signature,
+        &q.echo_str,
+        &conf.encoded_aes_key,
+    )
+    .unwrap();
+    echo
 }
 
 pub async fn on_message(Query(q): Query<ValidateQuery>, b: Bytes) -> impl IntoResponse {
+
     info!("on_message: q = {:?}", q);
     info!("on_message: body = {:?}", b);
     "ok"
