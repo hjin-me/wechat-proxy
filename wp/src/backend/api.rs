@@ -1,3 +1,4 @@
+use crate::backend::mp::crypt::VerifyInfo;
 use crate::backend::mp::MP;
 use crate::backend::Config;
 use axum::body::{Body, Bytes};
@@ -78,7 +79,14 @@ pub async fn validate_url(
 ) -> impl IntoResponse {
     info!("validate_url: {:?}", q);
 
-    match mp.verify_url(&q.msg_signature, q.timestamp, q.nonce, &q.echo_str) {
+    match mp.verify_url(
+        &VerifyInfo {
+            signature: q.msg_signature,
+            timestamp: q.timestamp,
+            nonce: q.nonce,
+        },
+        &q.echo_str,
+    ) {
         Ok(echo) => echo,
         Err(e) => {
             warn!("url 验证失败: {:?}", e);
@@ -87,8 +95,26 @@ pub async fn validate_url(
     }
 }
 
-pub async fn on_message(Query(q): Query<ValidateQuery>, b: Bytes) -> impl IntoResponse {
+pub async fn on_message(
+    Extension(mp): Extension<Arc<MP>>,
+    Query(q): Query<ValidateQuery>,
+    b: String,
+) -> impl IntoResponse {
     info!("on_message: q = {:?}", q);
     info!("on_message: body = {:?}", b);
-    "ok"
+    match mp.handle_msg(
+        &VerifyInfo {
+            signature: q.msg_signature,
+            timestamp: q.timestamp,
+            nonce: q.nonce,
+        },
+        b.as_ref(),
+    ) {
+        Ok(xml) => {
+            info!("on_message: msg = {:?}", xml);
+        }
+        Err(e) => {
+            warn!("on_message 验证失败: {:?}", e);
+        }
+    }
 }

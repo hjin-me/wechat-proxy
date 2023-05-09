@@ -1,16 +1,16 @@
-use crate::backend::mp::crypt::{calc_signature, cbc_decrypt, parse_plain_text};
+use crate::backend::mp::crypt::{calc_signature, cbc_decrypt, parse_plain_text, VerifyInfo};
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 
-pub fn check_sign(sign: &str, token: &str, ts: i64, nonce: i64, data: &str) -> bool {
+pub fn check_sign(token: &str, q: &VerifyInfo, data: &str) -> bool {
     let s = calc_signature(
         token,
-        ts.to_string().as_str(),
-        nonce.to_string().as_str(),
+        q.timestamp.to_string().as_str(),
+        q.nonce.to_string().as_str(),
         data,
     );
-    s == sign
+    s == q.signature
 }
 // <xml>
 //    <ToUserName><![CDATA[toUser]]></ToUserName>
@@ -29,10 +29,20 @@ struct EncryptedXML {
 pub fn decrypt_message(
     key: &[u8],
     receiver_id: &str,
-    // verify_info: &VerifyInfo,
+    token: &str,
+    verify_info: &VerifyInfo,
     xml: &str,
-) -> Result<String> {
+) -> Result<CallbackMessage> {
     let encrypted_msg = quick_xml::de::from_str::<EncryptedXML>(xml)?.encrypted_msg;
+    let sign = calc_signature(
+        token,
+        &verify_info.timestamp.to_string().as_str(),
+        &verify_info.nonce.to_string().as_str(),
+        &encrypted_msg,
+    );
+    if sign != verify_info.signature {
+        return Err(anyhow!("签名不正确"));
+    }
     // verify_message(token, verify_info, &encrypted_msg)?;
     let b = base64::engine::general_purpose::STANDARD.decode(encrypted_msg.as_bytes())?;
     let r = cbc_decrypt(key, &b)?;
@@ -40,7 +50,65 @@ pub fn decrypt_message(
     if receiver_id != decoded_receiver_id {
         return Err(anyhow!("receiver_id={} 与服务端配置不一致", receiver_id));
     }
-    Ok(msg)
+    Ok(decode_xml(&msg))
+}
+
+fn decode_xml(xml: &str) -> CallbackMessage {
+    if let Ok(m) = quick_xml::de::from_str::<TextCallbackMessage>(xml) {
+        return CallbackMessage::Text(m);
+    }
+    if let Ok(m) = quick_xml::de::from_str::<ImageCallbackMessage>(xml) {
+        return CallbackMessage::Image(m);
+    }
+    CallbackMessage::Others
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "xml")]
+pub struct TextCallbackMessage {
+    #[serde(rename = "ToUserName")]
+    pub to_user_name: String,
+    #[serde(rename = "FromUserName")]
+    pub from_user_name: String,
+    #[serde(rename = "CreateTime")]
+    pub create_time: i64,
+    #[serde(rename = "MsgType")]
+    pub msg_type: String,
+    #[serde(rename = "Content")]
+    pub content: String,
+    #[serde(rename = "MsgId")]
+    pub msg_id: String,
+    #[serde(rename = "AgentID")]
+    pub agent_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "xml")]
+pub struct ImageCallbackMessage {
+    #[serde(rename = "ToUserName")]
+    pub to_user_name: String,
+    #[serde(rename = "FromUserName")]
+    pub from_user_name: String,
+    #[serde(rename = "CreateTime")]
+    pub create_time: i64,
+    #[serde(rename = "MsgType")]
+    pub msg_type: String,
+    #[serde(rename = "PicUrl")]
+    pub pic_url: String,
+    #[serde(rename = "MediaId")]
+    pub media_id: String,
+    #[serde(rename = "MsgId")]
+    pub msg_id: String,
+    #[serde(rename = "AgentID")]
+    pub agent_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum CallbackMessage {
+    Text(TextCallbackMessage),
+    Image(ImageCallbackMessage),
+    Others,
 }
 
 #[cfg(test)]
@@ -57,13 +125,12 @@ mod test {
         let verify_timestamp = 1409659589;
         let verify_nonce = 263014780;
         let verify_echo_str = "P9nAzCzyDtyTWESHep1vC5X9xho/qYX3Zpb4yKa9SKld1DsH3Iyt3tP3zNdtp+4RPcs8TgAE7OaBO+FZXvnaqQ==";
-        assert!(check_sign(
-            verify_msg_sign,
-            token,
-            verify_timestamp,
-            verify_nonce,
-            verify_echo_str,
-        ));
+        let q = VerifyInfo {
+            signature: verify_msg_sign.to_string(),
+            timestamp: verify_timestamp,
+            nonce: verify_nonce,
+        };
+        assert!(check_sign(token, &q, verify_echo_str,));
     }
 
     #[test]
@@ -71,8 +138,7 @@ mod test {
         let xml = r#" <xml>
     <ToUserName><![CDATA[toUser]]></ToUserName>
     <AgentID><![CDATA[toAgentID]]></AgentID>
-    <Encrypt><![CDATA[msg_encrypt]]></Encrypt>
- </xml>"#;
+    <Encrypt><![CDATA[msg_encrypt]]></Encrypt></xml>"#;
         let exml: EncryptedXML = quick_xml::de::from_str(xml).unwrap();
         assert_eq!(exml.to_user_name, "toUser");
         assert_eq!(exml.agent_id, "toAgentID");
@@ -95,26 +161,61 @@ mod test {
             <AgentID>1</AgentID>\n\
             </xml>";
 
-        // let signature = "6c729cc5480fab0c2e594b7e25a93d2dbef6ab97";
-        // let timestamp = 1411525903;
-        // let nonce = "461056294";
-        // let config = WechatConfig::new(
-        //     WechatConfig::decode_aes_key(&"kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ=".into())
-        //         .unwrap(),
-        //     "wx49f0ab532d5d035a".into(),
-        //     "".into(),
-        //     "123456".into(),
-        // );
-        // let verify_info = VerifyInfo {
-        //     signature: signature.into(),
-        //     timestamp,
-        //     nonce: nonce.into(),
-        //     msg_signature: Some("74d92dfeb87ba7c714f89d98870ae5eb62dff26d".into()),
-        //     encrypt_type: Some("aes".into()),
-        // };
         let aes_key = decode_aes_key("kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ")?;
-        let decrypted = decrypt_message(&aes_key, "wx49f0ab532d5d035a", xml)?;
+        let decrypted = decrypt_message(
+            &aes_key,
+            "wx49f0ab532d5d035a",
+            "123456",
+            &VerifyInfo {
+                signature: "74d92dfeb87ba7c714f89d98870ae5eb62dff26d".to_string(),
+                timestamp: 1411525903,
+                nonce: 461056294,
+            },
+            xml,
+        )?;
         assert_eq!(expected, &decrypted);
+        Ok(())
+    }
+
+    #[test]
+    fn test_text() -> Result<()> {
+        let a = CallbackMessage::Text(TextCallbackMessage {
+            to_user_name: "tun".to_string(),
+            from_user_name: "fun".to_string(),
+            create_time: 111,
+            msg_type: "mt".to_string(),
+            content: "c".to_string(),
+            msg_id: "mi".to_string(),
+            agent_id: "ai".to_string(),
+        });
+
+        dbg!(quick_xml::se::to_string(&a).unwrap());
+
+        let xml = r#"<xml>
+   <ToUserName><![CDATA[toUser]]></ToUserName>
+   <FromUserName><![CDATA[fromUser]]></FromUserName> 
+   <CreateTime>1348831860</CreateTime>
+   <MsgType><![CDATA[text]]></MsgType>
+   <Content><![CDATA[this is a test]]></Content>
+   <MsgId>1234567890123456</MsgId>
+   <AgentID>1</AgentID>
+</xml>"#;
+        let msg = dbg!(quick_xml::de::from_str::<TextCallbackMessage>(xml).unwrap());
+        Ok(())
+    }
+
+    #[test]
+    fn test_image() -> Result<()> {
+        let xml = r#"<xml>
+    <ToUserName><![CDATA[toUser]]></ToUserName>
+    <FromUserName><![CDATA[fromUser]]></FromUserName>
+    <CreateTime>1348831860</CreateTime>
+    <MsgType><![CDATA[image]]></MsgType>
+    <PicUrl><![CDATA[this is a url]]></PicUrl>
+    <MediaId><![CDATA[media_id]]></MediaId>
+    <MsgId>1234567890123456</MsgId>
+    <AgentID>1</AgentID></xml>"#;
+        let msg = dbg!(quick_xml::de::from_str::<ImageCallbackMessage>(xml).unwrap());
         Ok(())
     }
 }

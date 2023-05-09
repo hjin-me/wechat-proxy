@@ -4,7 +4,8 @@ pub mod crypt;
 mod media;
 mod msg;
 
-use crate::backend::mp::crypt::verify_url;
+use crate::backend::mp::callback::CallbackMessage;
+use crate::backend::mp::crypt::{verify_url, VerifyInfo};
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use http::{HeaderMap, StatusCode};
@@ -114,16 +115,19 @@ impl MP {
 
 // 服务器回复消息
 impl MP {
-    pub fn verify_url(&self, sign: &str, ts: i64, nonce: i64, echo_str: &str) -> Result<String> {
+    pub fn verify_url(&self, q: &VerifyInfo, echo_str: &str) -> Result<String> {
         Ok(verify_url(
             self.token.as_str(),
-            sign,
-            ts.to_string().as_str(),
-            nonce.to_string().as_str(),
+            q,
             &echo_str,
             &self.aek_key,
             &self.corp_id,
         )?)
+    }
+    pub fn handle_msg(&self, q: &VerifyInfo, b: &str) -> Result<CallbackMessage> {
+        let msg = callback::decrypt_message(&self.aek_key, &self.corp_id, &self.token, q, b)?;
+        dbg!(&msg);
+        Ok(msg)
     }
 }
 

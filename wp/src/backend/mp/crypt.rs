@@ -1,6 +1,14 @@
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use sha1::Digest;
+
+#[derive(Debug)]
+pub struct VerifyInfo {
+    pub signature: String,
+    pub timestamp: i64,
+    pub nonce: i64,
+}
+
 pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
     Ok(base64_decode(&format!("{}=", encoded_aes_key))?)
 }
@@ -24,15 +32,18 @@ pub fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String 
 
 pub fn verify_url(
     token: &str,
-    msg_signature: &str,
-    timestamp: &str,
-    nonce: &str,
+    q: &VerifyInfo,
     echo_str: &str,
     aes_key: &[u8],
     corp_id: &str,
 ) -> Result<String> {
-    let signature = calc_signature(&token, &timestamp, &nonce, &echo_str);
-    if signature != msg_signature {
+    let signature = calc_signature(
+        &token,
+        &q.timestamp.to_string().as_str(),
+        &q.nonce.to_string().as_str(),
+        &echo_str,
+    );
+    if signature != q.signature {
         return Err(anyhow::anyhow!("签名不正确"));
     }
     let es = base64::engine::general_purpose::STANDARD
