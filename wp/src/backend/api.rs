@@ -1,3 +1,4 @@
+use crate::backend::mp::callback::CallbackMessage::Text;
 use crate::backend::mp::crypt::VerifyInfo;
 use crate::backend::mp::MP;
 use crate::backend::Config;
@@ -112,6 +113,31 @@ pub async fn on_message(
     ) {
         Ok(xml) => {
             info!("on_message: msg = {:?}", xml);
+            match xml {
+                Text(xml) => {
+                    match mp
+                        .message_send(
+                            json!({
+                               "touser" : xml.from_user_name,
+                               "msgtype" : "text",
+                               "agentid" : 1,
+                               "text" : {
+                                   "content" : "我能收到你的消息啦~~~"
+                               },
+                            })
+                            .to_string()
+                            .as_str(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!("on_message 回复失败: {:?}", e);
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
         Err(e) => {
             warn!("on_message 验证失败: {:?}", e);
