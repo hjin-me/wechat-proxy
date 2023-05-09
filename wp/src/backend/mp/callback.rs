@@ -63,7 +63,7 @@ fn decode_xml(xml: &str) -> CallbackMessage {
     CallbackMessage::Others
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename = "xml")]
 pub struct TextCallbackMessage {
     #[serde(rename = "ToUserName")]
@@ -82,7 +82,7 @@ pub struct TextCallbackMessage {
     pub agent_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename = "xml")]
 pub struct ImageCallbackMessage {
     #[serde(rename = "ToUserName")]
@@ -103,7 +103,7 @@ pub struct ImageCallbackMessage {
     pub agent_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(untagged)]
 pub enum CallbackMessage {
     Text(TextCallbackMessage),
@@ -152,14 +152,19 @@ mod test {
             <Encrypt><![CDATA[RgqEoJj5A4EMYlLvWO1F86ioRjZfaex/gePD0gOXTxpsq5Yj4GNglrBb8I2BAJVODGajiFnXBu7mCPatfjsu6IHCrsTyeDXzF6Bv283dGymzxh6ydJRvZsryDyZbLTE7rhnus50qGPMfp2wASFlzEgMW9z1ef/RD8XzaFYgm7iTdaXpXaG4+BiYyolBug/gYNx410cvkKR2/nPwBiT+P4hIiOAQqGp/TywZBtDh1yCF2KOd0gpiMZ5jSw3e29mTvmUHzkVQiMS6td7vXUaWOMZnYZlF3So2SjHnwh4jYFxdgpkHHqIrH/54SNdshoQgWYEvccTKe7FS709/5t6NMxuGhcUGAPOQipvWTT4dShyqio7mlsl5noTrb++x6En749zCpQVhDpbV6GDnTbcX2e8K9QaNWHp91eBdCRxthuL0=]]></Encrypt>\n\
             <AgentID><![CDATA[1]]></AgentID>\n\
             </xml>";
-        let expected = "<xml><ToUserName><![CDATA[wx49f0ab532d5d035a]]></ToUserName>\n\
+        let expected = CallbackMessage::Text(
+            quick_xml::de::from_str::<TextCallbackMessage>(
+                "<xml><ToUserName><![CDATA[wx49f0ab532d5d035a]]></ToUserName>\n\
             <FromUserName><![CDATA[messense]]></FromUserName>\n\
             <CreateTime>1411525903</CreateTime>\n\
             <MsgType><![CDATA[text]]></MsgType>\n\
             <Content><![CDATA[test]]></Content>\n\
             <MsgId>4363689963896700987</MsgId>\n\
             <AgentID>1</AgentID>\n\
-            </xml>";
+            </xml>",
+            )
+            .unwrap(),
+        );
 
         let aes_key = decode_aes_key("kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ")?;
         let decrypted = decrypt_message(
@@ -173,7 +178,8 @@ mod test {
             },
             xml,
         )?;
-        assert_eq!(expected, &decrypted);
+        assert_eq!(&expected, &decrypted);
+        dbg!(decrypted);
         Ok(())
     }
 

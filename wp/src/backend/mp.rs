@@ -126,7 +126,6 @@ impl MP {
     }
     pub fn handle_msg(&self, q: &VerifyInfo, b: &str) -> Result<CallbackMessage> {
         let msg = callback::decrypt_message(&self.aek_key, &self.corp_id, &self.token, q, b)?;
-        dbg!(&msg);
         Ok(msg)
     }
 }

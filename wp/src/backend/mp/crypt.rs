@@ -75,6 +75,7 @@ use base64::alphabet::STANDARD;
 use base64::engine::general_purpose::PAD;
 use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
 use byteorder::{BigEndian, NativeEndian, WriteBytesExt};
+use cbc::cipher::block_padding::NoPadding;
 use hex_literal::hex;
 use rand::Rng;
 use tracing::debug;
@@ -89,11 +90,13 @@ pub fn cbc_decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let mut cipher = Aes256CbcDec::new_from_slices(key, iv)
         .map_err(|e| anyhow::Error::new(e).context("初始化解密函数失败"))?;
     let mut buffer = vec![0u8; data.len()];
+    dbg!(data.len());
 
     let r = cipher
-        .decrypt_padded_b2b_mut::<Pkcs7>(data, &mut buffer)
+        .decrypt_padded_b2b_mut::<NoPadding>(data, &mut buffer)
         .map_err(|e| anyhow!("解密失败 {}", e))?;
-    Ok(r.to_vec())
+    let end = r.len() - (r[r.len() - 1] as usize);
+    Ok(r[..end].to_vec())
 }
 
 pub fn cbc_encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>, String> {
@@ -144,6 +147,7 @@ mod test {
     use std::fs::File;
     use std::io::Read;
     use std::{env, fs};
+    use time::format_description::parse;
 
     #[test]
     fn test_calc_signature() {
@@ -183,6 +187,8 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(msg_encrypt)
             .unwrap();
+
+        dbg!(parse_plain_text(&cbc_decrypt(aes_key.as_slice(), v.as_slice()).unwrap()).unwrap());
         let signature = calc_signature("test", "123456", "test", "rust");
         assert_eq!("d6056f2bb3ad3e30f4afa5ef90cc9ddcdc7b7b27", signature);
 

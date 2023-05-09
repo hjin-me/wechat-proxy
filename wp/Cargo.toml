@@ -54,8 +54,7 @@ assert-json-diff = "2.0.2"
 [features]
 default = ["ssr"]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
-ssr = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio", "leptos/ssr", "leptos_meta/ssr", "leptos_router/ssr", "dep:leptos_axum", "dep:once_cell", "dep:toml", "dep:mini-moka",
-    "dep:quick-xml", "dep:rand", "dep:byteorder"]
+ssr = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio", "leptos/ssr", "leptos_meta/ssr", "leptos_router/ssr", "dep:leptos_axum", "dep:once_cell", "dep:toml", "dep:mini-moka", "dep:quick-xml", "dep:rand", "dep:byteorder"]
 
 [package.metadata.cargo-all-features]
 denylist = ["axum", "tower", "tower-http", "tokio", "leptos_axum", "elasticsearch", "once_cell", "toml"]
