@@ -1,6 +1,9 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use sha1::Digest;
+pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
+    Ok(base64_decode(&format!("{}=", encoded_aes_key))?)
+}
 
 // 计算签名
 pub fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String {
@@ -25,25 +28,25 @@ pub fn verify_url(
     timestamp: &str,
     nonce: &str,
     echo_str: &str,
-    encoding_aes_key: &str,
+    aes_key: &[u8],
     corp_id: &str,
-) -> Result<String, String> {
+) -> Result<String> {
     let signature = calc_signature(&token, &timestamp, &nonce, &echo_str);
     if signature != msg_signature {
-        return Err("signature not equal".to_string());
+        return Err(anyhow::anyhow!("签名不正确"));
     }
     let es = base64::engine::general_purpose::STANDARD
         .decode(&echo_str)
-        .map_err(|e| format!("base64 decode: {}", e.to_string()))?;
-    let plaintext = cbc_decrypt(&encoding_aes_key, &es)?;
+        .map_err(|e| anyhow::Error::new(e).context("echo_str base64 解密失败"))?;
+    let plaintext = cbc_decrypt(aes_key, &es)?;
     let (msg, receiver_id) = parse_plain_text(&plaintext)?;
     if receiver_id != corp_id {
-        return Err("receiver_id is not equil".to_string());
+        return Err(anyhow!("receiver_id={} 与服务端配置不一致", receiver_id));
     }
     Ok(msg)
 }
 
-fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String), String> {
+pub fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String)> {
     let random = &plaintext[..16];
     debug!("random {:?}", random);
     let msg_len = u32::from_be_bytes([plaintext[16], plaintext[17], plaintext[18], plaintext[19]]);
@@ -68,34 +71,29 @@ use tracing::debug;
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 // aes decrypt with cbc
-fn cbc_decrypt(encoding_aes_key: &str, data: &Vec<u8>) -> Result<Vec<u8>, String> {
-    let key = base64_decode(&format!("{}=", encoding_aes_key))
-        .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
-    let iv = &key[..16];
-    let key = &key[..32];
+pub fn cbc_decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    let iv = &aes_key[..16];
+    let key = &aes_key[..32];
 
-    let data = data.clone();
     let mut cipher = Aes256CbcDec::new_from_slices(key, iv)
-        .map_err(|e| format!("new_from_slices {}", e.to_string()))?;
+        .map_err(|e| anyhow::Error::new(e).context("初始化解密函数失败"))?;
     let mut buffer = vec![0u8; data.len()];
 
     let r = cipher
-        .decrypt_padded_b2b_mut::<Pkcs7>(data.as_slice(), &mut buffer)
-        .map_err(|e| format!("decrypt: {}", e.to_string()))?;
+        .decrypt_padded_b2b_mut::<Pkcs7>(data, &mut buffer)
+        .map_err(|e| anyhow!("解密失败 {}", e))?;
     Ok(r.to_vec())
 }
 
-fn cbc_encrypt(encoding_aes_key: &str, plaintext: &str, corp_id: &str) -> Result<String, String> {
+pub fn cbc_encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>, String> {
     let mut wtr = get_random_string().into_bytes();
     wtr.write_u32::<BigEndian>((plaintext.len() as u32))
         .map_err(|e| format!("write_u32: {}", e.to_string()))?;
     wtr.extend(plaintext.bytes());
     wtr.extend(corp_id.bytes());
 
-    let key = base64_decode(&format!("{}=", encoding_aes_key))
-        .map_err(|e| format!("key base64decode: {}", e.to_string()))?;
-    let iv = &key[..16];
-    let key = &key[..32];
+    let iv = &aes_key[..16];
+    let key = &aes_key[..32];
 
     let mut cipher = Aes256CbcEnc::new_from_slices(key, iv)
         .map_err(|e| format!("enc new_from_slices {}", e.to_string()))?;
@@ -104,8 +102,7 @@ fn cbc_encrypt(encoding_aes_key: &str, plaintext: &str, corp_id: &str) -> Result
     let r = cipher
         .encrypt_padded_b2b_mut::<Pkcs7>(wtr.as_slice(), &mut buffer)
         .map_err(|e| format!("encrypt: {}", e.to_string()))?;
-
-    Ok(base64::engine::general_purpose::STANDARD.encode(&r))
+    Ok(r.to_vec())
 }
 const G: GeneralPurpose = GeneralPurpose::new(
     &STANDARD,
@@ -154,7 +151,8 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(verify_echo_str)
             .unwrap();
-        let r = cbc_decrypt(encoding_aes_key, &v).unwrap();
+        let aes_key = base64_decode(&format!("{}=", encoding_aes_key)).unwrap();
+        let r = cbc_decrypt(aes_key.as_slice(), v.as_slice()).unwrap();
         let (m, r) = dbg!(parse_plain_text(&r).unwrap());
         assert_eq!(r, receiver_id);
         assert_eq!("1616140317555161061", m.as_str());
@@ -188,7 +186,8 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(verify_echo_str)
             .unwrap();
-        let r = cbc_decrypt(encoding_aes_key, &v).unwrap();
+        let aes_key = base64_decode(&format!("{}=", encoding_aes_key)).unwrap();
+        let r = cbc_decrypt(aes_key.as_slice(), v.as_slice()).unwrap();
         let (m, r) = dbg!(parse_plain_text(&r).unwrap());
         assert_eq!(r, receiver_id);
         assert_eq!("5927782489442352469", m.as_str());
@@ -209,8 +208,9 @@ mod test {
     #[test]
     fn test_decrypt() {
         let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let aes_key = base64_decode(&format!("{}=", encoding_aes_key)).unwrap();
         let r = cbc_decrypt(
-            encoding_aes_key,
+            aes_key.as_slice(),
             &base64_decode("9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=").unwrap(),
         )
         .unwrap();
@@ -222,8 +222,12 @@ mod test {
     #[test]
     fn test_encrypt() -> Result<()> {
         let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
-        let encrypted = cbc_encrypt(encoding_aes_key, "test", "rust").unwrap();
-        assert_eq!("9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=", &encrypted);
+        let aes_key = base64_decode(&format!("{}=", encoding_aes_key))?;
+        let encrypted = cbc_encrypt(aes_key.as_slice(), "test", "rust").unwrap();
+        assert_eq!(
+            "9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=",
+            &base64::engine::general_purpose::STANDARD.encode(encrypted)
+        );
         Ok(())
     }
 }

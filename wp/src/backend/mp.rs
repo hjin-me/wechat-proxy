@@ -4,6 +4,7 @@ pub mod crypt;
 mod media;
 mod msg;
 
+use crate::backend::mp::crypt::verify_url;
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use http::{HeaderMap, StatusCode};
@@ -22,10 +23,19 @@ pub struct MP {
     agent_id: i64,
     access_token: RwLock<Token>,
     client: reqwest::Client,
+    aek_key: Vec<u8>,
+    token: String,
 }
 
 impl MP {
-    pub fn new(corp_id: &str, corp_secret: &str, agent_id: &i64) -> Self {
+    pub fn new(
+        corp_id: &str,
+        corp_secret: &str,
+        agent_id: &i64,
+        encoded_aes_key: &str,
+        token: &str,
+    ) -> Self {
+        let aek_key = crypt::decode_aes_key(encoded_aes_key).expect("解码企业微信 AES key 失败");
         Self {
             corp_id: corp_id.to_string(),
             corp_secret: corp_secret.to_string(),
@@ -35,6 +45,8 @@ impl MP {
                 expires_after: time::OffsetDateTime::now_utc(),
             }),
             client: reqwest::Client::new(),
+            aek_key,
+            token: token.to_string(),
         }
     }
     async fn refresh_token(&self) -> Result<()> {
@@ -100,6 +112,21 @@ impl MP {
     }
 }
 
+// 服务器回复消息
+impl MP {
+    pub fn verify_url(&self, sign: &str, ts: i64, nonce: i64, echo_str: &str) -> Result<String> {
+        Ok(verify_url(
+            self.token.as_str(),
+            sign,
+            ts.to_string().as_str(),
+            nonce.to_string().as_str(),
+            &echo_str,
+            &self.aek_key,
+            &self.corp_id,
+        )?)
+    }
+}
+
 async fn rebuild_url(uri: &str, token: &str) -> Result<String> {
     let mut u = url::Url::parse(uri)?;
     u.set_host(Some("qyapi.weixin.qq.com"))?;
@@ -151,6 +178,8 @@ mod test {
             &serv_conf.corp_id,
             &serv_conf.corp_secret,
             &serv_conf.agent_id,
+            &serv_conf.encoded_aes_key,
+            &serv_conf.token,
         );
         let t1 = dbg!(mp.get_token().await?);
         let t2 = dbg!(mp.get_token().await?);
@@ -177,6 +206,8 @@ mod test {
             &serv_conf.corp_id,
             &serv_conf.corp_secret,
             &serv_conf.agent_id,
+            &serv_conf.encoded_aes_key,
+            &serv_conf.token,
         );
         let msg_id = dbg!(mp.message_send(msg).await?);
 

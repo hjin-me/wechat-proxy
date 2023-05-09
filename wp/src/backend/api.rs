@@ -1,4 +1,3 @@
-use crate::backend::mp::crypt::verify_url;
 use crate::backend::mp::MP;
 use crate::backend::Config;
 use axum::body::{Body, Bytes};
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
     let msg = String::from_utf8(b.to_vec()).unwrap();
@@ -74,22 +73,15 @@ pub struct ValidateQuery {
 }
 
 pub async fn validate_url(
-    Extension(conf): Extension<Arc<Config>>,
+    Extension(mp): Extension<Arc<MP>>,
     Query(q): Query<ValidateQuery>,
 ) -> impl IntoResponse {
     info!("validate_url: {:?}", q);
-    match verify_url(
-        &conf.token,
-        &q.msg_signature,
-        q.timestamp.to_string().as_str(),
-        q.nonce.to_string().as_str(),
-        &q.echo_str,
-        &conf.encoded_aes_key,
-        &conf.corp_id,
-    ) {
+
+    match mp.verify_url(&q.msg_signature, q.timestamp, q.nonce, &q.echo_str) {
         Ok(echo) => echo,
         Err(e) => {
-            info!("validate_url: {:?}", e);
+            warn!("url 验证失败: {:?}", e);
             "error".to_string()
         }
     }

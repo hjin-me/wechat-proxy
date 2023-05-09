@@ -54,6 +54,8 @@ pub async fn serv() {
         &serv_conf.corp_id,
         &serv_conf.corp_secret,
         &serv_conf.agent_id,
+        &serv_conf.encoded_aes_key,
+        &serv_conf.token,
     );
 
     api::register_server_functions();
