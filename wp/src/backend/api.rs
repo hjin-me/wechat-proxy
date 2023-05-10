@@ -118,7 +118,9 @@ pub async fn on_message(
             match xml {
                 Text(xml) => {
                     let mut g = glm.clone();
-                    g.chat(&xml.from_user_name, &xml.content).await;
+                    let n = g.chat(&xml.from_user_name, &xml.content).await;
+                    let content =
+                        format!("我的又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
 
                     match mp
                         .proxy_message_send(
@@ -127,7 +129,7 @@ pub async fn on_message(
                                "msgtype" : "text",
                                "agentid" : 1,
                                "text" : {
-                                   "content" : "我的大脑比较弱，一会生成好答案了回复你。"
+                                   "content" : content
                                },
                             })
                             .to_string()

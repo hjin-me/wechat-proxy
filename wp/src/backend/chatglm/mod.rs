@@ -27,25 +27,29 @@ pub struct GLM {
     q: Arc<Mutex<VecDeque<Msg>>>,
     c: reqwest::Client,
     api: String,
+    prompt_prefix: String,
 }
 
 impl GLM {
-    pub fn new(api: &str) -> Self {
+    pub fn new(api: &str, prompt_prefix: &str) -> Self {
         Self {
             q: Arc::new(Mutex::new(VecDeque::new())),
             c: reqwest::Client::new(),
             api: api.to_string(),
+            prompt_prefix: prompt_prefix.to_string(),
         }
     }
 
-    pub async fn chat(&self, from_user: &str, query: &str) {
+    pub async fn chat(&self, from_user: &str, query: &str) -> usize {
         info!(q = query, u = from_user, "glm chat");
         let mut q = self.q.lock().await;
+        let l = q.len();
         q.push_back(Msg {
             from_user: from_user.to_string(),
             query: query.to_string(),
             history: vec![],
         });
+        l
     }
 
     async fn _chat(&self, query: &str, history: Vec<Vec<String>>) -> Result<GLMResponse> {
@@ -68,11 +72,12 @@ impl GLM {
                 if let Some(msg) = q.pop_front() {
                     info!("consumer msg: {:?}", msg);
                     drop(q);
-                    let resp = glm._chat(&msg.query, vec![]).await;
+                    let query = format!("{}\n{}", glm.prompt_prefix, msg.query);
+                    let resp = glm._chat(&query, vec![]).await;
                     match resp {
                         Ok(resp) => {
                             info!(
-                                q = msg.query,
+                                q = query,
                                 a = resp.response,
                                 u = msg.from_user,
                                 t = "glm",
@@ -118,7 +123,7 @@ mod test {
     use super::*;
     #[tokio::test]
     async fn test_chat() -> Result<()> {
-        let glm = GLM::new("");
+        let glm = GLM::new("", "");
         glm._chat("你好", vec![]).await?;
         Ok(())
     }

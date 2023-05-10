@@ -14,4 +14,5 @@ pub struct Config {
     pub encoded_aes_key: String,
     pub token: String,
     pub glm_api: String,
+    pub prompt_prefix: String,
 }

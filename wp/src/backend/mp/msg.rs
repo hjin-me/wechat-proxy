@@ -12,7 +12,7 @@ enum MsgType {
     // Textcard,
     // News,
     // Mpnews,
-    // Markdown,
+    Markdown,
     // MiniprogramNotice,
     // Taskcard,
     // InteractiveTaskcard,
@@ -26,6 +26,7 @@ impl Display for MsgType {
             MsgType::Voice => write!(f, "voice"),
             MsgType::Video => write!(f, "video"),
             MsgType::File => write!(f, "file"),
+            MsgType::Markdown => write!(f, "markdown"),
         }
     }
 }
@@ -38,6 +39,7 @@ impl From<String> for MsgType {
             "voice" => MsgType::Voice,
             "video" => MsgType::Video,
             "file" => MsgType::File,
+            "markdown" => MsgType::Markdown,
             _ => MsgType::Text,
         }
     }
@@ -50,6 +52,7 @@ impl MsgType {
             MsgType::Voice => "voice".to_string(),
             MsgType::Video => "video".to_string(),
             MsgType::File => "file".to_string(),
+            MsgType::Markdown => "markdown".to_string(),
         }
     }
     fn as_str(&self) -> &'static str {
@@ -59,6 +62,7 @@ impl MsgType {
             MsgType::Voice => "voice",
             MsgType::Video => "video",
             MsgType::File => "file",
+            MsgType::Markdown => "markdown",
         }
     }
 }
@@ -102,6 +106,7 @@ pub enum SendMsgReq {
     VoiceMsgReq(SendVoiceMsgReq),
     VideoMsgReq(SendVideoMsgReq),
     FileMsgReq(SendFileMsgReq),
+    MarkdownMsgReq(SendMarkdownMsgReq),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -157,6 +162,13 @@ pub struct SendFileMsgReq {
     file: MediaContent,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SendMarkdownMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    markdown: TextContent,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SendMsgResponse {
     #[serde(rename = "errcode")]
@@ -202,6 +214,11 @@ pub async fn send_msg(
             q.common.msg_type = MsgType::File;
             q.common.agent_id = agent_id.clone();
             SendMsgReq::FileMsgReq(q)
+        }
+        SendMsgReq::MarkdownMsgReq(mut q) => {
+            q.common.msg_type = MsgType::Markdown;
+            q.common.agent_id = agent_id.clone();
+            SendMsgReq::MarkdownMsgReq(q)
         }
     };
 
