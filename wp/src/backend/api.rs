@@ -1,3 +1,4 @@
+use crate::backend::chatglm::GLM;
 use crate::backend::mp::callback::CallbackMessage::Text;
 use crate::backend::mp::crypt::VerifyInfo;
 use crate::backend::mp::MP;
@@ -16,7 +17,7 @@ use tracing::{info, warn};
 
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
     let msg = String::from_utf8(b.to_vec()).unwrap();
-    match mp.message_send(&msg).await {
+    match mp.proxy_message_send(&msg).await {
         Ok(msg_id) => Json(json!({"errcode" : 0, "errmsg" : "ok", "msgid" : msg_id})),
         Err(e) => Json(json!({"errcode" : -1, "errmsg" : e.to_string()})),
     }
@@ -98,6 +99,7 @@ pub async fn validate_url(
 
 pub async fn on_message(
     Extension(mp): Extension<Arc<MP>>,
+    Extension(glm): Extension<Arc<GLM>>,
     Query(q): Query<ValidateQuery>,
     b: String,
 ) -> impl IntoResponse {
@@ -115,14 +117,17 @@ pub async fn on_message(
             info!("on_message: msg = {:?}", xml);
             match xml {
                 Text(xml) => {
+                    let mut g = glm.clone();
+                    g.chat(&xml.from_user_name, &xml.content).await;
+
                     match mp
-                        .message_send(
+                        .proxy_message_send(
                             json!({
                                "touser" : xml.from_user_name,
                                "msgtype" : "text",
                                "agentid" : 1,
                                "text" : {
-                                   "content" : "我能收到你的消息啦~~~"
+                                   "content" : "我的大脑比较弱，一会生成好答案了回复你。"
                                },
                             })
                             .to_string()

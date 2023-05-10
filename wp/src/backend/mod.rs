@@ -1,4 +1,6 @@
 pub mod api;
+pub mod chatglm;
+mod context;
 pub mod mp;
 
 use anyhow::Result;
@@ -11,4 +13,5 @@ pub struct Config {
     pub agent_id: i64,
     pub encoded_aes_key: String,
     pub token: String,
+    pub glm_api: String,
 }

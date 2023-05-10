@@ -87,10 +87,9 @@ pub fn cbc_decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let iv = &aes_key[..16];
     let key = &aes_key[..32];
 
-    let mut cipher = Aes256CbcDec::new_from_slices(key, iv)
+    let cipher = Aes256CbcDec::new_from_slices(key, iv)
         .map_err(|e| anyhow::Error::new(e).context("初始化解密函数失败"))?;
     let mut buffer = vec![0u8; data.len()];
-    dbg!(data.len());
 
     let r = cipher
         .decrypt_padded_b2b_mut::<NoPadding>(data, &mut buffer)
@@ -101,7 +100,7 @@ pub fn cbc_decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 
 pub fn cbc_encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>, String> {
     let mut wtr = get_random_string().into_bytes();
-    wtr.write_u32::<BigEndian>((plaintext.len() as u32))
+    wtr.write_u32::<BigEndian>(plaintext.len() as u32)
         .map_err(|e| format!("write_u32: {}", e.to_string()))?;
     wtr.extend(plaintext.bytes());
     wtr.extend(corp_id.bytes());
@@ -109,7 +108,7 @@ pub fn cbc_encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec
     let iv = &aes_key[..16];
     let key = &aes_key[..32];
 
-    let mut cipher = Aes256CbcEnc::new_from_slices(key, iv)
+    let cipher = Aes256CbcEnc::new_from_slices(key, iv)
         .map_err(|e| format!("enc new_from_slices {}", e.to_string()))?;
 
     let mut buffer = vec![0u8; (wtr.len() + 15) / 16 * 16];

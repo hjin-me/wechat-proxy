@@ -49,6 +49,7 @@ pub async fn serv() {
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
+    let mut glm = backend::chatglm::GLM::new(&serv_conf.glm_api);
 
     let mp = MP::new(
         &serv_conf.corp_id,
@@ -57,6 +58,9 @@ pub async fn serv() {
         &serv_conf.encoded_aes_key,
         &serv_conf.token,
     );
+    let amp = Arc::new(mp);
+
+    glm.queue_consumer(amp.clone());
 
     api::register_server_functions();
 
@@ -105,7 +109,8 @@ pub async fn serv() {
         .fallback(file_and_error_handler)
         .layer(Extension(Arc::new(leptos_options)))
         .layer(Extension(Arc::new(serv_conf)))
-        .layer(Extension(Arc::new(mp)))
+        .layer(Extension(amp))
+        .layer(Extension(Arc::new(glm)))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

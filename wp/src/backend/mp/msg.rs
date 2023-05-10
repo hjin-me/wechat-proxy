@@ -96,7 +96,7 @@ struct MediaContent {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-enum SendMsgReq {
+pub enum SendMsgReq {
     TextMsgReq(SendTextMsgReq),
     ImageMsgReq(SendImageMsgReq),
     VoiceMsgReq(SendVoiceMsgReq),
@@ -127,31 +127,31 @@ struct SendMsgCommon {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct SendImageMsgReq {
+pub struct SendImageMsgReq {
     #[serde(flatten)]
     common: SendMsgCommon,
     image: MediaContent,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SendTextMsgReq {
+pub struct SendTextMsgReq {
     #[serde(flatten)]
     common: SendMsgCommon,
     text: TextContent,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SendVoiceMsgReq {
+pub struct SendVoiceMsgReq {
     #[serde(flatten)]
     common: SendMsgCommon,
     voice: MediaContent,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SendVideoMsgReq {
+pub struct SendVideoMsgReq {
     #[serde(flatten)]
     common: SendMsgCommon,
     video: MediaContent,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SendFileMsgReq {
+pub struct SendFileMsgReq {
     #[serde(flatten)]
     common: SendMsgCommon,
     file: MediaContent,

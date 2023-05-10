@@ -71,7 +71,7 @@ impl MP {
         Ok(r.content.clone())
     }
 
-    pub async fn message_send(&self, msg: &str) -> Result<String> {
+    pub async fn proxy_message_send(&self, msg: &str) -> Result<String> {
         let token = self.get_token().await?;
         let msg_id = msg::send_msg(&self.client, &token, &self.agent_id, msg).await?;
         Ok(msg_id)
@@ -212,7 +212,7 @@ mod test {
             &serv_conf.encoded_aes_key,
             &serv_conf.token,
         );
-        let msg_id = dbg!(mp.message_send(msg).await?);
+        let msg_id = dbg!(mp.proxy_message_send(msg).await?);
 
         dbg!(mp.message_recall(&msg_id).await?);
         Ok(())
