@@ -13,7 +13,7 @@ use tracing::{info, warn};
 struct Msg {
     from_user: String,
     query: String,
-    // history: Vec<>
+    history: Vec<Vec<String>>,
 }
 #[derive(Deserialize, Serialize, Debug)]
 struct GLMResponse {
@@ -39,11 +39,12 @@ impl GLM {
     }
 
     pub async fn chat(&self, from_user: &str, query: &str) {
-        info!("glm chat: {:?}, {}", from_user, query);
+        info!(q = query, u = from_user, "glm chat");
         let mut q = self.q.lock().await;
         q.push_back(Msg {
             from_user: from_user.to_string(),
             query: query.to_string(),
+            history: vec![],
         });
     }
 
@@ -70,7 +71,13 @@ impl GLM {
                     let resp = glm._chat(&msg.query, vec![]).await;
                     match resp {
                         Ok(resp) => {
-                            info!("glm response: {:?}", resp);
+                            info!(
+                                q = msg.query,
+                                a = resp.response,
+                                u = msg.from_user,
+                                t = "glm",
+                                "glm response"
+                            );
                             match mp
                                 .proxy_message_send(
                                     &json!({

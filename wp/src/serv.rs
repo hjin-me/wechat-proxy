@@ -34,7 +34,8 @@ struct Args {
 pub async fn serv() {
     let args = Args::parse();
     // a builder for `FmtSubscriber`.
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+        .json()
         // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
         // will be written to stdout.
         .with_max_level(args.log.parse::<Level>().unwrap_or(Level::INFO))
@@ -44,7 +45,7 @@ pub async fn serv() {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     // get pwd
     let pwd = std::env::current_dir().unwrap();
-    info!("Starting up {}, {:?}", &args.config, pwd);
+    info!(conf_path = &args.config, cwd = ?pwd, "Starting up",);
     info!("Version: {}", env!("COMMIT_ID"));
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");

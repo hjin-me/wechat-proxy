@@ -33,7 +33,7 @@ time = { version = "0.3.19", features = ["formatting", "parsing", "macros", "ser
 toml = { version = "0.7.2", optional = true }
 clap = { version = "4.1.6", features = ["derive", "error-context", "help", "std", "suggestions", "usage"] }
 tracing = { version = "0.1.37" }
-tracing-subscriber = { version = "0.3.16" }
+tracing-subscriber = { version = "0.3.16", features = ["json"] }
 lazy_static = "1.4.0"
 tracing-wasm = "0.2.1"
 mini-moka = { version = "0.10.0", optional = true }
