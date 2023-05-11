@@ -10,7 +10,7 @@ pub struct VerifyInfo {
 }
 
 pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
-    Ok(base64_decode(&format!("{}=", encoded_aes_key))?)
+    base64_decode(&format!("{}=", encoded_aes_key))
 }
 
 // 计算签名
@@ -38,16 +38,16 @@ pub fn verify_url(
     corp_id: &str,
 ) -> Result<String> {
     let signature = calc_signature(
-        &token,
-        &q.timestamp.to_string().as_str(),
-        &q.nonce.to_string().as_str(),
-        &echo_str,
+        token,
+        q.timestamp.to_string().as_str(),
+        q.nonce.to_string().as_str(),
+        echo_str,
     );
     if signature != q.signature {
         return Err(anyhow::anyhow!("签名不正确"));
     }
     let es = base64::engine::general_purpose::STANDARD
-        .decode(&echo_str)
+        .decode(echo_str)
         .map_err(|e| anyhow::Error::new(e).context("echo_str base64 解密失败"))?;
     let plaintext = cbc_decrypt(aes_key, &es)?;
     let (msg, receiver_id) = parse_plain_text(&plaintext)?;
@@ -72,11 +72,11 @@ pub fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String)> {
 
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use base64::alphabet::STANDARD;
-use base64::engine::general_purpose::PAD;
+
 use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
-use byteorder::{BigEndian, NativeEndian, WriteBytesExt};
+use byteorder::{BigEndian, WriteBytesExt};
 use cbc::cipher::block_padding::NoPadding;
-use hex_literal::hex;
+
 use rand::Rng;
 use tracing::debug;
 

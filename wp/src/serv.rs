@@ -4,7 +4,7 @@ use axum::{
     body::Body as AxumBody,
     extract::Extension,
     http::{header::HeaderMap, Request},
-    routing::{any, get, post},
+    routing::{get, post},
     Router,
 };
 use clap::Parser;
@@ -58,7 +58,7 @@ pub async fn serv() {
     let mp = MP::new(
         &serv_conf.corp_id,
         &serv_conf.corp_secret,
-        &serv_conf.agent_id,
+        serv_conf.agent_id,
         &serv_conf.encoded_aes_key,
         &serv_conf.token,
     );

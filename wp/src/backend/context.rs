@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::HashMap;
 
 pub type Chat = (i64, String, String);

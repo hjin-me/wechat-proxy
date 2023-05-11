@@ -9,8 +9,6 @@ use crate::backend::mp::crypt::{verify_url, VerifyInfo};
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use http::{HeaderMap, StatusCode};
-use serde::Deserialize;
-use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
@@ -32,7 +30,7 @@ impl MP {
     pub fn new(
         corp_id: &str,
         corp_secret: &str,
-        agent_id: &i64,
+        agent_id: i64,
         encoded_aes_key: &str,
         token: &str,
     ) -> Self {
@@ -40,7 +38,7 @@ impl MP {
         Self {
             corp_id: corp_id.to_string(),
             corp_secret: corp_secret.to_string(),
-            agent_id: agent_id.clone(),
+            agent_id,
             access_token: RwLock::new(Token {
                 content: "".to_string(),
                 expires_after: time::OffsetDateTime::now_utc(),
@@ -55,8 +53,8 @@ impl MP {
         let (access_token, expires_in) =
             client::get_access_token(&self.corp_id, &self.corp_secret).await?;
         let mut w = self.access_token.write().await;
-        (*w).content = access_token;
-        (*w).expires_after =
+        w.content = access_token;
+        w.expires_after =
             time::OffsetDateTime::now_utc() + time::Duration::seconds(expires_in - 30);
         Ok(())
     }
@@ -73,7 +71,7 @@ impl MP {
 
     pub async fn proxy_message_send(&self, msg: &str) -> Result<String> {
         let token = self.get_token().await?;
-        let msg_id = msg::send_msg(&self.client, &token, &self.agent_id, msg).await?;
+        let msg_id = msg::send_msg(&self.client, &token, self.agent_id, msg).await?;
         Ok(msg_id)
     }
     pub async fn message_recall(&self, msg_id: &str) -> Result<()> {
@@ -91,9 +89,9 @@ impl MP {
         let mut h = HeaderMap::new();
         for (k, v) in headers.iter() {
             debug!("{}: {}", k, v.to_str()?);
-            match k {
-                &http::header::HOST => {}
-                &http::header::ACCEPT_ENCODING => {}
+            match *k {
+                http::header::HOST => {}
+                http::header::ACCEPT_ENCODING => {}
                 _ => {
                     h.insert(k, v.clone());
                 }
@@ -116,13 +114,13 @@ impl MP {
 // 服务器回复消息
 impl MP {
     pub fn verify_url(&self, q: &VerifyInfo, echo_str: &str) -> Result<String> {
-        Ok(verify_url(
+        verify_url(
             self.token.as_str(),
             q,
-            &echo_str,
+            echo_str,
             &self.aek_key,
             &self.corp_id,
-        )?)
+        )
     }
     pub fn handle_msg(&self, q: &VerifyInfo, b: &str) -> Result<CallbackMessage> {
         let msg = callback::decrypt_message(&self.aek_key, &self.corp_id, &self.token, q, b)?;
@@ -180,7 +178,7 @@ mod test {
         let mp = MP::new(
             &serv_conf.corp_id,
             &serv_conf.corp_secret,
-            &serv_conf.agent_id,
+            serv_conf.agent_id,
             &serv_conf.encoded_aes_key,
             &serv_conf.token,
         );
@@ -208,7 +206,7 @@ mod test {
         let mp = MP::new(
             &serv_conf.corp_id,
             &serv_conf.corp_secret,
-            &serv_conf.agent_id,
+            serv_conf.agent_id,
             &serv_conf.encoded_aes_key,
             &serv_conf.token,
         );

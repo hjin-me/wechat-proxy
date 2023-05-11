@@ -2,13 +2,13 @@ use crate::backend::chatglm::GLM;
 use crate::backend::mp::callback::CallbackMessage::Text;
 use crate::backend::mp::crypt::VerifyInfo;
 use crate::backend::mp::MP;
-use crate::backend::Config;
+
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, Query};
 use axum::http::header::HeaderMap;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
-use http::Request;
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -115,36 +115,32 @@ pub async fn on_message(
     ) {
         Ok(xml) => {
             info!("on_message: msg = {:?}", xml);
-            match xml {
-                Text(xml) => {
-                    let n = glm.chat(&xml.from_user_name, &xml.content).await;
-                    if n > 0 {
-                        let content =
-                            format!("我又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
+            if let Text(xml) = xml {
+                let n = glm.chat(&xml.from_user_name, &xml.content).await;
+                if n > 0 {
+                    let content = format!("我又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
 
-                        match mp
-                            .proxy_message_send(
-                                json!({
-                                   "touser" : xml.from_user_name,
-                                   "msgtype" : "text",
-                                   "agentid" : 1,
-                                   "text" : {
-                                       "content" : content
-                                   },
-                                })
-                                .to_string()
-                                .as_str(),
-                            )
-                            .await
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                warn!("on_message 回复失败: {:?}", e);
-                            }
+                    match mp
+                        .proxy_message_send(
+                            json!({
+                               "touser" : xml.from_user_name,
+                               "msgtype" : "text",
+                               "agentid" : 1,
+                               "text" : {
+                                   "content" : content
+                               },
+                            })
+                            .to_string()
+                            .as_str(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!("on_message 回复失败: {:?}", e);
                         }
                     }
                 }
-                _ => {}
             }
         }
         Err(e) => {

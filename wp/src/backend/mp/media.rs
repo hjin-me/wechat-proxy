@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use leptos::ev::click;
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
 

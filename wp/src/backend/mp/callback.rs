@@ -36,8 +36,8 @@ pub fn decrypt_message(
     let encrypted_msg = quick_xml::de::from_str::<EncryptedXML>(xml)?.encrypted_msg;
     let sign = calc_signature(
         token,
-        &verify_info.timestamp.to_string().as_str(),
-        &verify_info.nonce.to_string().as_str(),
+        verify_info.timestamp.to_string().as_str(),
+        verify_info.nonce.to_string().as_str(),
         &encrypted_msg,
     );
     if sign != verify_info.signature {

@@ -186,38 +186,38 @@ pub struct SendMsgResponse {
 pub async fn send_msg(
     client: &reqwest::Client,
     token: &str,
-    agent_id: &i64,
+    agent_id: i64,
     msg: &str,
 ) -> Result<String> {
     let body = match serde_json::from_str::<SendMsgReq>(msg)? {
         SendMsgReq::TextMsgReq(mut q) => {
             q.common.msg_type = MsgType::Text;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::TextMsgReq(q)
         }
         SendMsgReq::ImageMsgReq(mut q) => {
             q.common.msg_type = MsgType::Image;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::ImageMsgReq(q)
         }
         SendMsgReq::VoiceMsgReq(mut q) => {
             q.common.msg_type = MsgType::Voice;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::VoiceMsgReq(q)
         }
         SendMsgReq::VideoMsgReq(mut q) => {
             q.common.msg_type = MsgType::Video;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::VideoMsgReq(q)
         }
         SendMsgReq::FileMsgReq(mut q) => {
             q.common.msg_type = MsgType::File;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::FileMsgReq(q)
         }
         SendMsgReq::MarkdownMsgReq(mut q) => {
             q.common.msg_type = MsgType::Markdown;
-            q.common.agent_id = agent_id.clone();
+            q.common.agent_id = agent_id;
             SendMsgReq::MarkdownMsgReq(q)
         }
     };
@@ -287,7 +287,7 @@ mod test {
         let serv_conf: Config = toml::from_str(contents.as_str()).unwrap();
 
         let (token, _) = dbg!(get_access_token(&serv_conf.corp_id, &serv_conf.corp_secret).await?);
-        send_msg(&reqwest::Client::new(),&token, &serv_conf.agent_id, r#"{ "touser" : "SongSong", "msgtype" : "text", "agentid" : 1, "text" : { "content" : "content" } }"#).await?;
+        send_msg(&reqwest::Client::new(),&token, serv_conf.agent_id, r#"{ "touser" : "SongSong", "msgtype" : "text", "agentid" : 1, "text" : { "content" : "content" } }"#).await?;
         Ok(())
     }
 
