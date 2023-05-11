@@ -117,29 +117,30 @@ pub async fn on_message(
             info!("on_message: msg = {:?}", xml);
             match xml {
                 Text(xml) => {
-                    let mut g = glm.clone();
-                    let n = g.chat(&xml.from_user_name, &xml.content).await;
-                    let content =
-                        format!("我的又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
+                    let n = glm.chat(&xml.from_user_name, &xml.content).await;
+                    if n > 0 {
+                        let content =
+                            format!("我又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
 
-                    match mp
-                        .proxy_message_send(
-                            json!({
-                               "touser" : xml.from_user_name,
-                               "msgtype" : "text",
-                               "agentid" : 1,
-                               "text" : {
-                                   "content" : content
-                               },
-                            })
-                            .to_string()
-                            .as_str(),
-                        )
-                        .await
-                    {
-                        Ok(_) => {}
-                        Err(e) => {
-                            warn!("on_message 回复失败: {:?}", e);
+                        match mp
+                            .proxy_message_send(
+                                json!({
+                                   "touser" : xml.from_user_name,
+                                   "msgtype" : "text",
+                                   "agentid" : 1,
+                                   "text" : {
+                                       "content" : content
+                                   },
+                                })
+                                .to_string()
+                                .as_str(),
+                            )
+                            .await
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                warn!("on_message 回复失败: {:?}", e);
+                            }
                         }
                     }
                 }

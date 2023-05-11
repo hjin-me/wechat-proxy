@@ -16,6 +16,8 @@ use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{info, Level};
+use wp::backend::chatglm::GLM;
+use wp::backend::context::ChatMgr;
 use wp::backend::mp::MP;
 use wp::components::home::*;
 use wp::fallback::file_and_error_handler;
@@ -50,7 +52,8 @@ pub async fn serv() {
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
-    let mut glm = backend::chatglm::GLM::new(&serv_conf.glm_api, &serv_conf.prompt_prefix);
+    let mut glm = GLM::new(&serv_conf.glm_api, &serv_conf.prompt_prefix);
+    let chat_mgr = ChatMgr::new();
 
     let mp = MP::new(
         &serv_conf.corp_id,
@@ -60,8 +63,9 @@ pub async fn serv() {
         &serv_conf.token,
     );
     let amp = Arc::new(mp);
+    let mp_l = amp.clone();
 
-    glm.queue_consumer(amp.clone());
+    glm.queue_consumer(amp.clone(), chat_mgr);
 
     api::register_server_functions();
 
@@ -104,7 +108,7 @@ pub async fn serv() {
         .leptos_routes_with_context(
             leptos_options.clone(),
             routes,
-            move |cx| {},
+            move |cx| provide_context(cx, mp_l.clone()),
             |cx| view! { cx, <App/> },
         )
         .fallback(file_and_error_handler)
@@ -131,7 +135,18 @@ async fn server_fn_handler(
     path: Path<String>,
     headers: HeaderMap,
     // raw_query: RawQuery,
+    Extension(mp): Extension<Arc<MP>>,
+    Extension(glm): Extension<Arc<GLM>>,
     request: Request<AxumBody>,
 ) -> impl IntoResponse {
-    handle_server_fns_with_context(path, headers, move |cx| {}, request).await
+    handle_server_fns_with_context(
+        path,
+        headers,
+        move |cx| {
+            provide_context(cx, mp.clone());
+            provide_context(cx, glm.clone());
+        },
+        request,
+    )
+    .await
 }

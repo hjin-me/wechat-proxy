@@ -1,6 +1,6 @@
 pub mod api;
 pub mod chatglm;
-mod context;
+pub mod context;
 pub mod mp;
 
 use anyhow::Result;

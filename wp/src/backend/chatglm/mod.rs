@@ -1,3 +1,4 @@
+use crate::backend::context::ChatMgr;
 use crate::backend::mp::MP;
 use anyhow::Result;
 use http::header::CONTENT_TYPE;
@@ -13,7 +14,6 @@ use tracing::{info, warn};
 struct Msg {
     from_user: String,
     query: String,
-    history: Vec<Vec<String>>,
 }
 #[derive(Deserialize, Serialize, Debug)]
 struct GLMResponse {
@@ -47,7 +47,6 @@ impl GLM {
         q.push_back(Msg {
             from_user: from_user.to_string(),
             query: query.to_string(),
-            history: vec![],
         });
         l
     }
@@ -64,8 +63,8 @@ impl GLM {
             .await?)
     }
 
-    pub fn queue_consumer(&mut self, mp: Arc<MP>) {
-        let mut glm = self.clone();
+    pub fn queue_consumer(&mut self, mp: Arc<MP>, mut chat_mgr: ChatMgr) {
+        let glm = self.clone();
         spawn(async move {
             loop {
                 let mut q = glm.q.lock().await;
@@ -73,16 +72,23 @@ impl GLM {
                     info!("consumer msg: {:?}", msg);
                     drop(q);
                     let query = format!("{}\n{}", glm.prompt_prefix, msg.query);
-                    let resp = glm._chat(&query, vec![]).await;
+                    let history = chat_mgr
+                        .get(&msg.from_user)
+                        .map(|c| c.history())
+                        .unwrap_or(vec![]);
+                    let resp = glm._chat(&query, history).await;
                     match resp {
                         Ok(resp) => {
+                            info!("history: {:?}", resp.history);
                             info!(
                                 q = query,
                                 a = resp.response,
                                 u = msg.from_user,
                                 t = "glm",
+                                h = ?resp.history,
                                 "glm response"
                             );
+                            chat_mgr.add(&msg.from_user, &msg.query, &resp.response, 0);
                             match mp
                                 .proxy_message_send(
                                     &json!({
@@ -124,7 +130,8 @@ mod test {
     #[tokio::test]
     async fn test_chat() -> Result<()> {
         let glm = GLM::new("", "");
-        glm._chat("你好", vec![]).await?;
+        glm._chat("你好", vec![vec!["他好".to_string(), "我也好".to_string()]])
+            .await?;
         Ok(())
     }
 }
