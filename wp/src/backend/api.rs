@@ -1,6 +1,5 @@
 use crate::backend::chatglm::GLM;
 use crate::backend::mp::callback::CallbackMessage::Text;
-use crate::backend::mp::crypt::VerifyInfo;
 use crate::backend::mp::MP;
 
 use axum::body::{Body, Bytes};
@@ -14,6 +13,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn};
+use wechat_crypto::VerifyInfo;
 
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
     let msg = String::from_utf8(b.to_vec()).unwrap();

@@ -1,7 +1,7 @@
-use crate::backend::mp::crypt::{calc_signature, cbc_decrypt, parse_plain_text, VerifyInfo};
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use wechat_crypto::{calc_signature, decrypt, parse_plain_text, VerifyInfo};
 
 pub fn check_sign(token: &str, q: &VerifyInfo, data: &str) -> bool {
     let s = calc_signature(
@@ -44,8 +44,9 @@ pub fn decrypt_message(
         return Err(anyhow!("签名不正确"));
     }
     // verify_message(token, verify_info, &encrypted_msg)?;
+
     let b = base64::engine::general_purpose::STANDARD.decode(encrypted_msg.as_bytes())?;
-    let r = cbc_decrypt(key, &b)?;
+    let r = decrypt(key, &b)?;
     let (msg, decoded_receiver_id) = parse_plain_text(&r)?;
     if receiver_id != decoded_receiver_id {
         return Err(anyhow!("receiver_id={} 与服务端配置不一致", receiver_id));
@@ -115,7 +116,7 @@ pub enum CallbackMessage {
 mod test {
     use super::*;
     use crate::backend::mp::callback::check_sign;
-    use crate::backend::mp::crypt::{calc_signature, decode_aes_key};
+    use wechat_crypto::decode_aes_key;
 
     #[tokio::test]
     async fn test_check_sign() {

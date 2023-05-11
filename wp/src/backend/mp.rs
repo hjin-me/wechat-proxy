@@ -1,16 +1,15 @@
 pub mod callback;
 mod client;
-pub mod crypt;
 mod media;
 mod msg;
 
 use crate::backend::mp::callback::CallbackMessage;
-use crate::backend::mp::crypt::{verify_url, VerifyInfo};
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use http::{HeaderMap, StatusCode};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
+use wechat_crypto::{decode_aes_key, verify_url, VerifyInfo};
 
 struct Token {
     content: String,
@@ -34,7 +33,7 @@ impl MP {
         encoded_aes_key: &str,
         token: &str,
     ) -> Self {
-        let aek_key = crypt::decode_aes_key(encoded_aes_key).expect("解码企业微信 AES key 失败");
+        let aek_key = decode_aes_key(encoded_aes_key).expect("解码企业微信 AES key 失败");
         Self {
             corp_id: corp_id.to_string(),
             corp_secret: corp_secret.to_string(),
