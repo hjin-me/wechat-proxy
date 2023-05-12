@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -9,9 +10,9 @@ enum MsgType {
     Voice,
     Video,
     File,
-    // Textcard,
-    // News,
-    // Mpnews,
+    TextCard,
+    News,
+    Mpnews,
     Markdown,
     // MiniprogramNotice,
     // Taskcard,
@@ -19,7 +20,7 @@ enum MsgType {
     // TemplateCard,
 }
 impl Display for MsgType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MsgType::Text => write!(f, "text"),
             MsgType::Image => write!(f, "image"),
@@ -27,6 +28,9 @@ impl Display for MsgType {
             MsgType::Video => write!(f, "video"),
             MsgType::File => write!(f, "file"),
             MsgType::Markdown => write!(f, "markdown"),
+            MsgType::TextCard => write!(f, "textcard"),
+            MsgType::News => write!(f, "news"),
+            MsgType::Mpnews => write!(f, "mpnews"),
         }
     }
 }
@@ -40,21 +44,14 @@ impl From<String> for MsgType {
             "video" => MsgType::Video,
             "file" => MsgType::File,
             "markdown" => MsgType::Markdown,
+            "textcard" => MsgType::TextCard,
+            "news" => MsgType::News,
+            "mpnews" => MsgType::Mpnews,
             _ => MsgType::Text,
         }
     }
 }
 impl MsgType {
-    fn to_string(&self) -> String {
-        match self {
-            MsgType::Text => "text".to_string(),
-            MsgType::Image => "image".to_string(),
-            MsgType::Voice => "voice".to_string(),
-            MsgType::Video => "video".to_string(),
-            MsgType::File => "file".to_string(),
-            MsgType::Markdown => "markdown".to_string(),
-        }
-    }
     fn as_str(&self) -> &'static str {
         match self {
             MsgType::Text => "text",
@@ -63,9 +60,13 @@ impl MsgType {
             MsgType::Video => "video",
             MsgType::File => "file",
             MsgType::Markdown => "markdown",
+            MsgType::TextCard => "textcard",
+            MsgType::News => "news",
+            MsgType::Mpnews => "mpnews",
         }
     }
 }
+
 impl<'de> Deserialize<'de> for MsgType {
     fn deserialize<D>(deserializer: D) -> Result<MsgType, D::Error>
     where
@@ -79,7 +80,6 @@ impl Serialize for MsgType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
-        // S::Error: std::error::Error,
     {
         serializer.serialize_str(self.as_str())
     }
@@ -97,16 +97,48 @@ struct MediaContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
 }
+#[derive(Serialize, Deserialize, Debug)]
+struct TextCardContent {
+    title: String,
+    description: String,
+    url: String,
+    #[serde(rename = "btntxt")]
+    btn_txt: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct NewsContent {
+    articles: Vec<NewsArticle>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct NewsArticle {
+    title: String,
+    description: String,
+    url: String,
+    #[serde(rename = "picurl")]
+    pic_url: String,
+}
+// #[derive(Serialize, Deserialize, Debug)]
+// struct MpnewsContent {
+//     articles: Vec<MpArticle>,
+// }
+// #[derive(Serialize, Deserialize, Debug)]
+// struct MpArticle {
+//     title: String,
+//     thumb_media_id: String,
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum SendMsgReq {
-    TextMsgReq(SendTextMsgReq),
-    ImageMsgReq(SendImageMsgReq),
-    VoiceMsgReq(SendVoiceMsgReq),
-    VideoMsgReq(SendVideoMsgReq),
-    FileMsgReq(SendFileMsgReq),
-    MarkdownMsgReq(SendMarkdownMsgReq),
+    Text(SendTextMsgReq),
+    Image(SendImageMsgReq),
+    Voice(SendVoiceMsgReq),
+    Video(SendVideoMsgReq),
+    File(SendFileMsgReq),
+    Markdown(SendMarkdownMsgReq),
+    TextCard(SendTextCardMsgReq),
+    News(SendNewsMsgReq),
+    // Mpnews(SendMpnewsMsgReq),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -168,6 +200,24 @@ pub struct SendMarkdownMsgReq {
     common: SendMsgCommon,
     markdown: TextContent,
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SendTextCardMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    textcard: TextCardContent,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SendNewsMsgReq {
+    #[serde(flatten)]
+    common: SendMsgCommon,
+    news: NewsContent,
+}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct SendMpnewsMsgReq {
+//     #[serde(flatten)]
+//     common: SendMsgCommon,
+//     mpnews: ,
+// }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SendMsgResponse {
@@ -190,35 +240,45 @@ pub async fn send_msg(
     msg: &str,
 ) -> Result<String> {
     let body = match serde_json::from_str::<SendMsgReq>(msg)? {
-        SendMsgReq::TextMsgReq(mut q) => {
+        SendMsgReq::Text(mut q) => {
             q.common.msg_type = MsgType::Text;
             q.common.agent_id = agent_id;
-            SendMsgReq::TextMsgReq(q)
+            SendMsgReq::Text(q)
         }
-        SendMsgReq::ImageMsgReq(mut q) => {
+        SendMsgReq::Image(mut q) => {
             q.common.msg_type = MsgType::Image;
             q.common.agent_id = agent_id;
-            SendMsgReq::ImageMsgReq(q)
+            SendMsgReq::Image(q)
         }
-        SendMsgReq::VoiceMsgReq(mut q) => {
+        SendMsgReq::Voice(mut q) => {
             q.common.msg_type = MsgType::Voice;
             q.common.agent_id = agent_id;
-            SendMsgReq::VoiceMsgReq(q)
+            SendMsgReq::Voice(q)
         }
-        SendMsgReq::VideoMsgReq(mut q) => {
+        SendMsgReq::Video(mut q) => {
             q.common.msg_type = MsgType::Video;
             q.common.agent_id = agent_id;
-            SendMsgReq::VideoMsgReq(q)
+            SendMsgReq::Video(q)
         }
-        SendMsgReq::FileMsgReq(mut q) => {
+        SendMsgReq::File(mut q) => {
             q.common.msg_type = MsgType::File;
             q.common.agent_id = agent_id;
-            SendMsgReq::FileMsgReq(q)
+            SendMsgReq::File(q)
         }
-        SendMsgReq::MarkdownMsgReq(mut q) => {
+        SendMsgReq::Markdown(mut q) => {
             q.common.msg_type = MsgType::Markdown;
             q.common.agent_id = agent_id;
-            SendMsgReq::MarkdownMsgReq(q)
+            SendMsgReq::Markdown(q)
+        }
+        SendMsgReq::TextCard(mut q) => {
+            q.common.msg_type = MsgType::TextCard;
+            q.common.agent_id = agent_id;
+            SendMsgReq::TextCard(q)
+        }
+        SendMsgReq::News(mut q) => {
+            q.common.msg_type = MsgType::News;
+            q.common.agent_id = agent_id;
+            SendMsgReq::News(q)
         }
     };
 
