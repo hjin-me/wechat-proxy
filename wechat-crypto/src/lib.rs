@@ -1,9 +1,60 @@
+//! 解决企业微信数据解码解密时遇到的异常问题，以便正常解析内容
+//!
+//! 可以应用在以下场景
+//!
+//! * 企业微信回调接口签名验证和解密
+//! * 企业微信通讯录导出数据解密
+//!
+//! ## Example
+//! ```rust
+//! use base64::Engine;
+//! use base64::engine::general_purpose::STANDARD;
+//! use wechat_crypto::{calc_signature, decode_aes_key, decrypt, parse_plain_text};
+//!
+//! let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+//! // 解码 aes_key
+//! let aes_key = decode_aes_key(encoded_aes_key).unwrap();
+//!
+//! // 解密数据收到的数据
+//! let r = decrypt(
+//!     &aes_key,
+//!     &STANDARD
+//!         .decode("9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=")
+//!         .unwrap(),
+//! )
+//! .unwrap();
+//! dbg!(String::from_utf8_lossy(&r).to_string());
+//!
+//! // 提取数据中的正文和 receiver_id
+//! let (t, r) = parse_plain_text(&r).unwrap();
+//! assert_eq!("test", &t);
+//!
+//! // 签名验证
+//! let token = "QDG6eK";
+//! let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
+//! let verify_timestamp = "1409659589";
+//! let verify_nonce = "263014780";
+//! let verify_echo_str = "P9nAzCzyDtyTWESHep1vC5X9xho/qYX3Zpb4yKa9SKld1DsH3Iyt3tP3zNdtp+4RPcs8TgAE7OaBO+FZXvnaqQ==";
+//!
+//! // 验证签名是否匹配
+//! assert_eq!(
+//!     verify_msg_sign,
+//!     calc_signature(token, verify_timestamp, verify_nonce, verify_echo_str)
+//! );
+//!
+//! ```
+use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use anyhow::{anyhow, Result};
+use base64::alphabet::STANDARD;
+use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
 use base64::Engine;
+use byteorder::{BigEndian, WriteBytesExt};
+use cbc::cipher::block_padding::NoPadding;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 
-/// 验证签名的必须参数
+/// 验证签名的必须参数，该参数从 URL 获取
 #[derive(Deserialize, Serialize, Debug)]
 pub struct VerifyInfo {
     /// 企业微信签名，msg_signature
@@ -21,12 +72,11 @@ const G: GeneralPurpose = GeneralPurpose::new(
 );
 
 /// 对原始的 encoded_aes_key 进行解码
-#[inline]
 pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
     Ok(G.decode(format!("{}=", encoded_aes_key))?)
 }
 
-/// 计算签名
+/// 计算签名函数
 /// ```rust
 /// use base64::Engine;
 /// use base64::engine::general_purpose::STANDARD;
@@ -34,7 +84,7 @@ pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
 /// fn test_calc_signature() {
 ///     let token = "QDG6eK";
 ///     let receiver_id = "wx5823bf96d3bd56c7";
-///     let encoding_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
+///     let encoded_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
 ///     let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
 ///     let verify_timestamp = "1409659589";
 ///     let verify_nonce = "263014780";
@@ -46,7 +96,7 @@ pub fn decode_aes_key(encoded_aes_key: &str) -> Result<Vec<u8>> {
 ///     let v = STANDARD
 ///         .decode(verify_echo_str)
 ///         .unwrap();
-///     let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+///     let aes_key = decode_aes_key(encoded_aes_key).unwrap();
 ///     let r = decrypt(aes_key.as_slice(), v.as_slice()).unwrap();
 ///     let (m, r) = dbg!(parse_plain_text(&r).unwrap());
 ///     assert_eq!(r, receiver_id);
@@ -69,6 +119,10 @@ pub fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String 
 }
 
 /// 企业微信回调接口验证逻辑
+///
+/// 请根据使用的 http 框架获取 url 参数，然后传入该函数，该函数使用本 crate 其他几个函数组合完成签名验证。
+///
+/// 该函数未验证时间戳区间，需要自行验证
 /// ```rust
 /// use base64::Engine;
 /// use base64::engine::general_purpose::STANDARD;
@@ -76,8 +130,8 @@ pub fn calc_signature(token: &str, ts: &str, nonce: &str, data: &str) -> String 
 /// fn test_verify_url() -> anyhow::Result<()> {
 ///     let token = "QDG6eK";
 ///     let receiver_id = "wx5823bf96d3bd56c7";
-///     let encoding_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
-///     let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+///     let encoded_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
+///     let aes_key = decode_aes_key(encoded_aes_key).unwrap();
 ///
 ///     let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
 ///     let verify_timestamp = 1409659589;
@@ -127,6 +181,7 @@ pub fn verify_url(
 }
 
 /// 对解密后的数据进行还原
+///
 /// 移除前16位随机数，返回消息体和消息的 receiver_id
 pub fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String)> {
     // let random = &plaintext[..16];
@@ -139,25 +194,16 @@ pub fn parse_plain_text(plaintext: &[u8]) -> Result<(String, String)> {
     ))
 }
 
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use base64::alphabet::STANDARD;
-
-use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
-use byteorder::{BigEndian, WriteBytesExt};
-use cbc::cipher::block_padding::NoPadding;
-
-use rand::Rng;
-
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
-/// aes decrypt with cbc
+/// 使用 AES256 CBC 解密，解决了 PKCS7 填充问题
 /// ```rust
 /// use wechat_crypto::{decode_aes_key, decrypt, parse_plain_text};
 /// use base64::Engine;
 /// use base64::engine::general_purpose::STANDARD;
 /// fn test_decrypt() {
-///     let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
-///     let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+///     let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+///     let aes_key = decode_aes_key(encoded_aes_key).unwrap();
 ///     let r = decrypt(
 ///         aes_key.as_slice(),
 ///         &STANDARD
@@ -185,22 +231,21 @@ pub fn decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     Ok(r[..end].to_vec())
 }
 
-/// aes encrypt with cbc
-/// 对返回的内容进行加密
+/// 使用 AES256 CBC 按照微信文档数据格式进行加密
 /// ```rust
 /// use base64::Engine;
 /// use base64::engine::general_purpose::STANDARD;
 /// use wechat_crypto::{decode_aes_key, encrypt};
 /// fn test_encrypt() -> anyhow::Result<()> {
-///        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
-///        let aes_key = decode_aes_key(encoding_aes_key)?;
-///        let encrypted = encrypt(aes_key.as_slice(), "test", "rust").unwrap();
-///        assert_eq!(
-///            "9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=",
-///            &STANDARD.encode(encrypted)
-///        );
-///        Ok(())
-///    }
+///     let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+///     let aes_key = decode_aes_key(encoded_aes_key)?;
+///     let encrypted = encrypt(aes_key.as_slice(), "test", "rust").unwrap();
+///     assert_eq!(
+///         "9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=",
+///         &STANDARD.encode(encrypted)
+///     );
+///     Ok(())
+/// }
 /// ```
 pub fn encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>> {
     let mut wtr = get_random_string().into_bytes();
@@ -221,6 +266,7 @@ pub fn encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>
         .map_err(|e| anyhow!("解密失败 {}", e))?;
     Ok(r.to_vec())
 }
+
 fn get_random_string() -> String {
     if cfg!(test) {
         "1234567890123456".to_owned()
@@ -245,7 +291,7 @@ mod test {
     fn test_calc_signature() {
         let token = "QDG6eK";
         let receiver_id = "wx5823bf96d3bd56c7";
-        let encoding_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
+        let encoded_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
         let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
         let verify_timestamp = "1409659589";
         let verify_nonce = "263014780";
@@ -258,7 +304,7 @@ mod test {
         let v = base64::engine::general_purpose::STANDARD
             .decode(verify_echo_str)
             .unwrap();
-        let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+        let aes_key = decode_aes_key(encoded_aes_key).unwrap();
         let r = decrypt(aes_key.as_slice(), v.as_slice()).unwrap();
         let (m, r) = dbg!(parse_plain_text(&r).unwrap());
         assert_eq!(r, receiver_id);
@@ -284,13 +330,13 @@ mod test {
         assert_eq!("d6056f2bb3ad3e30f4afa5ef90cc9ddcdc7b7b27", signature);
 
         let receiver_id = "wx49f0ab532d5d035a";
-        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
         let verify_echo_str = "4ByGGj+sVCYcvGeQYhaKIk1o0pQRNbRjxybjTGblXrBaXlTXeOo1+bXFXDQQb1o6co6Yh9Bv41n7hOchLF6p+Q==";
 
         let v = base64::engine::general_purpose::STANDARD
             .decode(verify_echo_str)
             .unwrap();
-        let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+        let aes_key = decode_aes_key(encoded_aes_key).unwrap();
         let r = decrypt(aes_key.as_slice(), v.as_slice()).unwrap();
         let (m, r) = dbg!(parse_plain_text(&r).unwrap());
         assert_eq!(r, receiver_id);
@@ -299,8 +345,8 @@ mod test {
 
     #[test]
     fn test_decode_aes_key() -> Result<()> {
-        let encoding_aes_key = "IJUiXNpvGbODwKEBSEsAeOAPAhkqHqNCF6g19t9wfg2";
-        let b = decode_aes_key(encoding_aes_key)?;
+        let encoded_aes_key = "IJUiXNpvGbODwKEBSEsAeOAPAhkqHqNCF6g19t9wfg2";
+        let b = decode_aes_key(encoded_aes_key)?;
         let a = [
             32u8, 149, 34, 92, 218, 111, 25, 179, 131, 192, 161, 1, 72, 75, 0, 120, 224, 15, 2, 25,
             42, 30, 163, 66, 23, 168, 53, 246, 223, 112, 126, 13,
@@ -311,8 +357,8 @@ mod test {
 
     #[test]
     fn test_decrypt() {
-        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
-        let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+        let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let aes_key = decode_aes_key(encoded_aes_key).unwrap();
         let r = decrypt(
             aes_key.as_slice(),
             &base64::engine::general_purpose::STANDARD
@@ -327,8 +373,8 @@ mod test {
 
     #[test]
     fn test_encrypt() -> Result<()> {
-        let encoding_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
-        let aes_key = decode_aes_key(encoding_aes_key)?;
+        let encoded_aes_key = "kWxPEV2UEDyxWpmPdKC3F4dgPDmOvfKX1HGnEUDS1aQ";
+        let aes_key = decode_aes_key(encoded_aes_key)?;
         let encrypted = encrypt(aes_key.as_slice(), "test", "rust").unwrap();
         assert_eq!(
             "9s4gMv99m88kKTh/H8IdkNiFGeG9pd7vNWl50fGRWXY=",
@@ -341,8 +387,8 @@ mod test {
     fn test_verify_url() -> Result<()> {
         let token = "QDG6eK";
         let receiver_id = "wx5823bf96d3bd56c7";
-        let encoding_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
-        let aes_key = decode_aes_key(encoding_aes_key).unwrap();
+        let encoded_aes_key = "jWmYm7qr5nMoAUwZRjGtBxmz3KA1tkAj3ykkR6q2B2C";
+        let aes_key = decode_aes_key(encoded_aes_key).unwrap();
 
         let verify_msg_sign = "5c45ff5e21c57e6ad56bac8758b79b1d9ac89fd3";
         let verify_timestamp = 1409659589;

@@ -1,12 +1,13 @@
 [package]
 name = "wechat-crypto"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-description = "Wechat / Wecom Data encrypt / decrypt"
+description = "微信开发者API数据加解密工具 Wechat / Wecom encrypt / decrypt "
 license = "MIT"
 repository = "https://github.com/hjin-me/wechat-proxy"
 authors = ["HJin"]
 keywords = ["wechat", "crypto", "signature", "sdk"]
+documentation = "https://docs.rs/wechat-crypto"
 exclude = ["tests/*"]
 
 
