@@ -50,9 +50,9 @@ use base64::engine::{GeneralPurpose, GeneralPurposeConfig};
 use base64::Engine;
 use byteorder::{BigEndian, WriteBytesExt};
 use cbc::cipher::block_padding::NoPadding;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
+use std::iter::repeat_with;
 
 /// 验证签名的必须参数，该参数从 URL 获取
 #[derive(Deserialize, Serialize, Debug)]
@@ -248,7 +248,7 @@ pub fn decrypt(aes_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 /// }
 /// ```
 pub fn encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>> {
-    let mut wtr = get_random_string().into_bytes();
+    let mut wtr = gen_random_byte();
     wtr.write_u32::<BigEndian>(plaintext.len() as u32)
         .map_err(|e| anyhow::Error::new(e).context("写入数据长度失败"))?;
     wtr.extend(plaintext.bytes());
@@ -267,18 +267,13 @@ pub fn encrypt(aes_key: &[u8], plaintext: &str, corp_id: &str) -> Result<Vec<u8>
     Ok(r.to_vec())
 }
 
-fn get_random_string() -> String {
+fn gen_random_byte() -> Vec<u8> {
     if cfg!(test) {
-        "1234567890123456".to_owned()
+        vec![
+            49u8, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54,
+        ]
     } else {
-        use rand::distributions::Alphanumeric;
-        String::from_utf8(
-            rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(16)
-                .collect(),
-        )
-        .unwrap()
+        repeat_with(|| fastrand::u8(..)).take(16).collect()
     }
 }
 #[cfg(test)]

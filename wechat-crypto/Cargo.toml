@@ -1,6 +1,6 @@
 [package]
 name = "wechat-crypto"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "微信开发者API数据加解密工具 Wechat / Wecom encrypt / decrypt "
 license = "MIT"
@@ -20,7 +20,7 @@ anyhow = "1.0.71"
 base64 = "0.21.0"
 byteorder = "1.4.3"
 cbc = "0.1.2"
-rand = "0.8.5"
 sha1 = "0.10.5"
 tracing = "0.1.37"
 serde = { version = "1.0.148", features = ["derive"] }
+fastrand = "1.9.0"
