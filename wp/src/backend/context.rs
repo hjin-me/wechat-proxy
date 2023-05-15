@@ -17,9 +17,13 @@ impl ChatContext {
     }
     pub fn history(&self) -> Vec<Vec<String>> {
         let mut r = vec![];
+        let before = time::OffsetDateTime::now_utc().unix_timestamp() - 60 * 30;
 
         // conversations for loop
         for c in &self.conversations {
+            if c.0 < before {
+                continue;
+            }
             r.push(vec![c.1.clone(), c.2.clone()]);
         }
 
@@ -27,17 +31,12 @@ impl ChatContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ChatMgr {
     pub chats: HashMap<String, ChatContext>,
 }
 
 impl ChatMgr {
-    pub fn new() -> Self {
-        Self {
-            chats: HashMap::new(),
-        }
-    }
     pub fn add(&mut self, user_id: &str, q: &str, a: &str, ts: i64) {
         let c = self
             .chats
@@ -46,13 +45,19 @@ impl ChatMgr {
                 user_id: user_id.to_string(),
                 conversations: vec![],
             });
-        if q == "clear" {
-            c.conversations.clear();
-            return;
-        }
         c.conversations.push((ts, q.to_string(), a.to_string()));
     }
     pub fn get(&self, user_id: &str) -> Option<&ChatContext> {
         self.chats.get(user_id)
+    }
+    pub fn clear(&mut self, user_id: &str) {
+        let c = self
+            .chats
+            .entry(user_id.to_string())
+            .or_insert(ChatContext {
+                user_id: user_id.to_string(),
+                conversations: vec![],
+            });
+        c.conversations.clear();
     }
 }

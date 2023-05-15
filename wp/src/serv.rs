@@ -53,7 +53,7 @@ pub async fn serv() {
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
     let mut glm = GLM::new(&serv_conf.glm_api, &serv_conf.prompt_prefix);
-    let chat_mgr = ChatMgr::new();
+    let chat_mgr = ChatMgr::default();
 
     let mp = MP::new(
         &serv_conf.corp_id,

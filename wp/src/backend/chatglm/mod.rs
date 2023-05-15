@@ -71,6 +71,26 @@ impl GLM {
                 if let Some(msg) = q.pop_front() {
                     info!("consumer msg: {:?}", msg);
                     drop(q);
+                    if msg.query == "/clean" {
+                        chat_mgr.clear(&msg.from_user);
+                        if let Err(e) = mp
+                            .proxy_message_send(
+                                &json!({
+                                    "touser": msg.from_user,
+                                    "msgtype": "text",
+                                    "agentid": 1,
+                                    "text": {
+                                        "content": "让我们开始新的对话吧"
+                                    }
+                                })
+                                .to_string(),
+                            )
+                            .await
+                        {
+                            warn!(e = ?e, "proxy message send failed");
+                        }
+                        continue;
+                    }
                     let query = format!("{}\n{}", glm.prompt_prefix, msg.query);
                     let history = chat_mgr
                         .get(&msg.from_user)
