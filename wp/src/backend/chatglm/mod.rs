@@ -108,7 +108,12 @@ impl GLM {
                                 h = ?resp.history,
                                 "glm response"
                             );
-                            chat_mgr.add(&msg.from_user, &msg.query, &resp.response, 0);
+                            chat_mgr.add(
+                                &msg.from_user,
+                                &msg.query,
+                                &resp.response,
+                                time::OffsetDateTime::now_utc().unix_timestamp(),
+                            );
                             match mp
                                 .proxy_message_send(
                                     &json!({
