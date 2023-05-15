@@ -1,4 +1,4 @@
-use axum::extract::Path;
+use axum::extract::{Path, RawQuery};
 use axum::response::IntoResponse;
 use axum::{
     body::Body as AxumBody,
@@ -134,7 +134,7 @@ pub async fn serv() {
 async fn server_fn_handler(
     path: Path<String>,
     headers: HeaderMap,
-    // raw_query: RawQuery,
+    raw_query: RawQuery,
     Extension(mp): Extension<Arc<MP>>,
     Extension(glm): Extension<Arc<GLM>>,
     request: Request<AxumBody>,
@@ -142,6 +142,7 @@ async fn server_fn_handler(
     handle_server_fns_with_context(
         path,
         headers,
+        raw_query,
         move |cx| {
             provide_context(cx, mp.clone());
             provide_context(cx, glm.clone());
