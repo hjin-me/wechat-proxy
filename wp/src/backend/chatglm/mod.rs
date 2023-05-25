@@ -91,21 +91,28 @@ impl GLM {
                         }
                         continue;
                     }
-                    let query = format!("{}\n{}", glm.prompt_prefix, msg.query);
+
+                    let query = if glm.prompt_prefix.trim().is_empty() {
+                        msg.query.clone()
+                    } else {
+                        format!("{}\n{}", glm.prompt_prefix, msg.query)
+                    };
                     let history = chat_mgr
                         .get(&msg.from_user)
                         .map(|c| c.history())
                         .unwrap_or(vec![]);
+                    let begin = time::OffsetDateTime::now_utc();
                     let resp = glm._chat(&query, history).await;
+                    let cost_during = time::OffsetDateTime::now_utc() - begin;
                     match resp {
                         Ok(resp) => {
-                            info!("history: {:?}", resp.history);
                             info!(
                                 q = query,
                                 a = resp.response,
                                 u = msg.from_user,
                                 t = "glm",
                                 h = ?resp.history,
+                                c = cost_during.whole_seconds(),
                                 "glm response"
                             );
                             chat_mgr.add(
@@ -114,6 +121,11 @@ impl GLM {
                                 &resp.response,
                                 time::OffsetDateTime::now_utc().unix_timestamp(),
                             );
+                            let resp_msg = format!(
+                                "{}\n\n对话耗时：{}s\n\n /clean 重新开始聊天",
+                                resp.response,
+                                cost_during.whole_seconds()
+                            );
                             match mp
                                 .proxy_message_send(
                                     &json!({
@@ -121,7 +133,7 @@ impl GLM {
                                         "msgtype": "text",
                                         "agentid": 1,
                                         "text": {
-                                            "content": resp.response
+                                            "content": resp_msg
                                         }
                                     })
                                     .to_string(),
@@ -137,7 +149,13 @@ impl GLM {
                             };
                         }
                         Err(e) => {
-                            warn!("glm error: {:?}", e);
+                            warn!(
+                                q = query,
+                                u = msg.from_user,
+                                c = cost_during.whole_seconds(),
+                                "glm error: {:?}",
+                                e
+                            )
                         }
                     }
                 } else {
