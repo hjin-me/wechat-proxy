@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use http::{HeaderMap, StatusCode};
 use tokio::sync::RwLock;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 use wechat_crypto::{decode_aes_key, verify_url, VerifyInfo};
 
 struct Token {
@@ -99,12 +99,12 @@ impl MP {
 
         // u.query_pairs()
         let u = rebuild_url(uri, &token).await?;
-        info!("proxy url: {}", u);
-        info!("proxy headers: {:?}", h);
+        trace!("proxy url: {}", u);
+        trace!("proxy headers: {:?}", h);
         let r = self.client.post(u).headers(h).body(b).send().await?;
         let code = r.status();
         let body = r.text().await?;
-        info!("proxy response: {} {}", code, body);
+        trace!("proxy response: {} {}", code, body);
 
         Ok((code, body))
     }

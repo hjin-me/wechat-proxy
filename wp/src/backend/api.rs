@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{trace, warn};
 use wechat_crypto::VerifyInfo;
 
 pub async fn message_send(Extension(mp): Extension<Arc<MP>>, b: Bytes) -> impl IntoResponse {
@@ -79,7 +79,7 @@ pub async fn validate_url(
     Extension(mp): Extension<Arc<MP>>,
     Query(q): Query<ValidateQuery>,
 ) -> impl IntoResponse {
-    info!("validate_url: {:?}", q);
+    trace!("validate_url: {:?}", q);
 
     match mp.verify_url(
         &VerifyInfo {
@@ -103,8 +103,8 @@ pub async fn on_message(
     Query(q): Query<ValidateQuery>,
     b: String,
 ) -> impl IntoResponse {
-    info!("on_message: q = {:?}", q);
-    info!("on_message: body = {:?}", b);
+    trace!("on_message: q = {:?}", q);
+    trace!("on_message: body = {:?}", b);
     match mp.handle_msg(
         &VerifyInfo {
             signature: q.msg_signature,
@@ -114,11 +114,11 @@ pub async fn on_message(
         b.as_ref(),
     ) {
         Ok(xml) => {
-            info!("on_message: msg = {:?}", xml);
+            trace!("on_message: msg = {:?}", xml);
             if let Text(xml) = xml {
                 let n = glm.chat(&xml.from_user_name, &xml.content).await;
                 if n > 0 {
-                    let content = format!("我又笨又穷，一会生成好答案了回复你。 (队列长度: {})", n);
+                    let content = format!("忙不过来了，你等一会我回复你。 (前面还有{}个问题)", n);
 
                     match mp
                         .proxy_message_send(

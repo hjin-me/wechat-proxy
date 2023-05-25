@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::spawn;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{info, trace, warn};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct Msg {
@@ -69,7 +69,7 @@ impl GLM {
             loop {
                 let mut q = glm.q.lock().await;
                 if let Some(msg) = q.pop_front() {
-                    info!("consumer msg: {:?}", msg);
+                    trace!("consumer msg: {:?}", msg);
                     drop(q);
                     if msg.query == "/clean" {
                         chat_mgr.clear(&msg.from_user);
@@ -102,7 +102,18 @@ impl GLM {
                         .map(|c| c.history())
                         .unwrap_or(vec![]);
                     let begin = time::OffsetDateTime::now_utc();
-                    let resp = glm._chat(&query, history).await;
+                    let resp = match tokio::time::timeout(
+                        std::time::Duration::from_secs(60 * 2),
+                        glm._chat(&query, history),
+                    )
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(e) => {
+                            warn!("glm timeout: {:?}", e);
+                            Err(anyhow::anyhow!("请求 ChatGLM 超过2分钟"))
+                        }
+                    };
                     let cost_during = time::OffsetDateTime::now_utc() - begin;
                     match resp {
                         Ok(resp) => {
@@ -122,7 +133,7 @@ impl GLM {
                                 time::OffsetDateTime::now_utc().unix_timestamp(),
                             );
                             let resp_msg = format!(
-                                "{}\n\n对话耗时：{}s\n\n /clean 重新开始聊天",
+                                "{}\n\n对话耗时：{}s\n/clean 重新开始聊天",
                                 resp.response,
                                 cost_during.whole_seconds()
                             );
@@ -141,7 +152,7 @@ impl GLM {
                                 .await
                             {
                                 Ok(_) => {
-                                    info!("glm response sent");
+                                    trace!("glm response sent");
                                 }
                                 Err(e) => {
                                     warn!("glm response send error: {:?}", e);
@@ -155,7 +166,30 @@ impl GLM {
                                 c = cost_during.whole_seconds(),
                                 "glm error: {:?}",
                                 e
-                            )
+                            );
+                            let resp_msg = "ChatGLM 回答失败，请稍后再试试";
+
+                            match mp
+                                .proxy_message_send(
+                                    &json!({
+                                        "touser": msg.from_user,
+                                        "msgtype": "text",
+                                        "agentid": 1,
+                                        "text": {
+                                            "content": resp_msg
+                                        }
+                                    })
+                                    .to_string(),
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    trace!("glm response sent");
+                                }
+                                Err(e) => {
+                                    warn!("glm response send error: {:?}", e);
+                                }
+                            };
                         }
                     }
                 } else {
