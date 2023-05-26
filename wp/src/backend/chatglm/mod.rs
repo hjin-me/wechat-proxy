@@ -65,7 +65,48 @@ impl GLM {
         timeout: Option<Duration>,
     ) -> Result<()> {
         info!(q = query, u = from_user, "glm chat");
-        let mut m = self.m.lock().await;
+        // process
+        // 2 等待获取锁
+        // 1 拿到锁了，正在请求
+        // 0 结束了
+        let processing = Arc::new(Mutex::new(2));
+        {
+            let processing = processing.clone();
+            let from_user = from_user.to_string();
+            let mp = mp.clone();
+            tokio::spawn(async move {
+                let d = Duration::from_secs(13);
+                tokio::time::sleep(d).await;
+                loop {
+                    let p = processing.lock().await;
+                    let resp_msg = match *p {
+                        1 => "小秘书😣正在燃烧为数不多[求赞助]的脑细胞帮你回答问题，莫急莫急",
+                        2 => "小秘书😣忙得焦头烂额，多等一会儿，忙完马上回复你",
+                        _ => return,
+                    };
+                    let _ = mp
+                        .proxy_message_send(
+                            &json!({
+                                "touser": from_user,
+                                "msgtype": "text",
+                                "agentid": 1,
+                                "text": {
+                                    "content": resp_msg
+                                }
+                            })
+                            .to_string(),
+                        )
+                        .await;
+
+                    tokio::time::sleep(d * 3).await;
+                }
+            });
+        }
+        let _m = self.m.lock().await;
+        {
+            let mut p = processing.lock().await;
+            *p = 1;
+        }
         // *m += 1u32;
 
         let begin = time::OffsetDateTime::now_utc();
@@ -84,7 +125,12 @@ impl GLM {
                 },
             ))
         };
+
         let m_ret = m_handler.await;
+        {
+            let mut p = processing.lock().await;
+            *p = 0;
+        }
         let cost_during = time::OffsetDateTime::now_utc() - begin;
         let m_ret = match m_ret {
             Err(e) => {
