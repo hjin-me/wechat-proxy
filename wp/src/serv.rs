@@ -12,6 +12,7 @@ use leptos::*;
 use leptos_axum::{generate_route_list, handle_server_fns_with_context, LeptosRoutes};
 use std::fs;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::trace::TraceLayer;
@@ -52,20 +53,18 @@ pub async fn serv() {
     let contents =
         fs::read_to_string(&args.config).expect("Should have been able to read the file");
     let serv_conf: backend::Config = toml::from_str(contents.as_str()).unwrap();
-    let mut glm = GLM::new(&serv_conf.glm_api, &serv_conf.prompt_prefix);
-    let chat_mgr = ChatMgr::default();
+    let glm = GLM::new(&serv_conf.glm_api);
+    let chat_mgr = Arc::new(Mutex::new(ChatMgr::default()));
 
     let mp = MP::new(
         &serv_conf.corp_id,
         &serv_conf.corp_secret,
-        serv_conf.agent_id,
+        serv_conf.agent_id.clone(),
         &serv_conf.encoded_aes_key,
         &serv_conf.token,
     );
     let amp = Arc::new(mp);
     let mp_l = amp.clone();
-
-    glm.queue_consumer(amp.clone(), chat_mgr);
 
     api::register_server_functions();
 
@@ -113,6 +112,7 @@ pub async fn serv() {
         )
         .fallback(file_and_error_handler)
         .layer(Extension(Arc::new(leptos_options)))
+        .layer(Extension(chat_mgr))
         .layer(Extension(Arc::new(serv_conf)))
         .layer(Extension(amp))
         .layer(Extension(Arc::new(glm)))

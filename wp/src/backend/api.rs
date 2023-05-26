@@ -8,10 +8,13 @@ use axum::http::header::HeaderMap;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 
+use crate::backend::context::ChatMgr;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
 use tracing::{trace, warn};
 use wechat_crypto::VerifyInfo;
 
@@ -100,6 +103,7 @@ pub async fn validate_url(
 pub async fn on_message(
     Extension(mp): Extension<Arc<MP>>,
     Extension(glm): Extension<Arc<GLM>>,
+    Extension(chat_mgr): Extension<Arc<Mutex<ChatMgr>>>,
     Query(q): Query<ValidateQuery>,
     b: String,
 ) -> impl IntoResponse {
@@ -116,30 +120,35 @@ pub async fn on_message(
         Ok(xml) => {
             trace!("on_message: msg = {:?}", xml);
             if let Text(xml) = xml {
-                let n = glm.chat(&xml.from_user_name, &xml.content).await;
-                if n > 0 {
-                    let content = format!("忙不过来了，你等一会我回复你。 (前面还有{}个问题)", n);
-
-                    match mp
+                if xml.content == "/clean" {
+                    let mut m = chat_mgr.lock().await;
+                    m.clear(&xml.from_user_name);
+                    drop(m);
+                    if let Err(e) = mp
                         .proxy_message_send(
-                            json!({
-                               "touser" : xml.from_user_name,
-                               "msgtype" : "text",
-                               "agentid" : 1,
-                               "text" : {
-                                   "content" : content
-                               },
+                            &json!({
+                                "touser": xml.from_user_name,
+                                "msgtype": "text",
+                                "agentid": 1,
+                                "text": {
+                                    "content": "让我们开始新的对话吧"
+                                }
                             })
-                            .to_string()
-                            .as_str(),
+                            .to_string(),
                         )
                         .await
                     {
-                        Ok(_) => {}
-                        Err(e) => {
-                            warn!("on_message 回复失败: {:?}", e);
-                        }
+                        warn!(e = ?e, "proxy message send failed");
                     }
+                } else {
+                    glm.async_chat(
+                        &xml.from_user_name,
+                        &xml.content,
+                        chat_mgr,
+                        mp,
+                        Some(Duration::from_secs(120)),
+                    )
+                    .await
                 }
             }
         }

@@ -3153,6 +3153,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
+ "async-trait",
  "axum",
  "base64 0.21.0",
  "cfg-if",
