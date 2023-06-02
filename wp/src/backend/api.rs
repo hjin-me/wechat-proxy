@@ -46,7 +46,7 @@ pub async fn media_upload(
     headers: HeaderMap,
     b: Bytes,
 ) -> impl IntoResponse {
-    let mut qs = qstring::QString::new(vec![("debug", "1")]);
+    let mut qs = qstring::QString::new::<&str, &str>(Vec::new());
     for p in params.iter() {
         qs.add_pair((p.0, p.1));
     }
