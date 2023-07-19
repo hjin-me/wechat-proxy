@@ -42,6 +42,7 @@ base64 = "0.21.0"
 quick-xml = { version = "0.28.2", features = ["serde", "serialize"], optional = true }
 wechat-crypto = { path = "../wechat-crypto", optional = true }
 async-trait = "0.1.68"
+openai_api_rust = "0.1.8"
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"

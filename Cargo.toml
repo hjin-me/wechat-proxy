@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "wp",
-    "wechat-crypto"
+    "wechat-crypto",
 ]
 
 [[workspace.metadata.leptos]]

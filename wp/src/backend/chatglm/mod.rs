@@ -1,7 +1,9 @@
 use crate::backend::context::ChatMgr;
 use crate::backend::mp::MP;
 use anyhow::{anyhow, Result};
-use http::header::CONTENT_TYPE;
+use openai_api_rust::chat::ChatApi;
+use openai_api_rust::completions::Completion;
+use openai_api_rust::OpenAI;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -25,15 +27,18 @@ struct GLMResponse {
 pub struct GLM {
     m: Arc<Mutex<u32>>,
     c: reqwest::Client,
-    api: String,
+    // api: String,
+    openai: OpenAI,
 }
 
 impl GLM {
     pub fn new(api: &str) -> Self {
+        let auth = openai_api_rust::Auth::new("none");
+        let openai = OpenAI::new(auth, api);
         Self {
             m: Arc::new(Mutex::new(0)),
             c: reqwest::Client::new(),
-            api: api.to_string(),
+            openai,
         }
     }
     pub async fn async_chat(
@@ -150,23 +155,28 @@ impl GLM {
             Ok(resp) => {
                 info!(
                     q = query,
-                    a = resp.response,
                     u = from_user,
                     t = "glm",
-                    h = ?resp.history,
                     c = cost_during.whole_seconds(),
                     "glm response"
                 );
-                let mut chat_mgr = chat_mgr.lock().await;
-                chat_mgr.add(
-                    from_user,
-                    query,
-                    &resp.response,
-                    time::OffsetDateTime::now_utc().unix_timestamp(),
-                );
+                // let mut chat_mgr = chat_mgr.lock().await;
+                // chat_mgr.add(
+                //     from_user,
+                //     query,
+                //     &resp.response,
+                //     time::OffsetDateTime::now_utc().unix_timestamp(),
+                // );
+                let r = resp
+                    .choices
+                    .get(0)
+                    .ok_or(anyhow!("glm response error"))?
+                    .message
+                    .clone()
+                    .ok_or(anyhow!("glm response error"))?;
                 format!(
                     "{}\n\n> 对话耗时：{}s\n> /clean 重新开始聊天",
-                    resp.response,
+                    r.content,
                     cost_during.whole_seconds()
                 )
             }
@@ -205,16 +215,38 @@ impl GLM {
         Ok(())
     }
 
-    async fn _chat(&self, query: &str, history: Vec<Vec<String>>) -> Result<GLMResponse> {
-        Ok(self
-            .c
-            .post(&self.api)
-            .header(CONTENT_TYPE, "application/json")
-            .json(&json!({"prompt": query, "history": history}))
-            .send()
-            .await?
-            .json::<GLMResponse>()
-            .await?)
+    async fn _chat(&self, query: &str, history: Vec<Vec<String>>) -> Result<Completion> {
+        let body = openai_api_rust::chat::ChatBody {
+            model: "chatglm2-6b".to_string(),
+            max_tokens: None,
+            temperature: None,
+            top_p: None,
+            n: Some(2),
+            stream: Some(false),
+            stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
+            logit_bias: None,
+            user: None,
+            messages: vec![openai_api_rust::Message {
+                role: openai_api_rust::Role::User,
+                content: query.to_string(),
+            }],
+        };
+        self.openai
+            .chat_completion_create(&body)
+            .map_err(|e| anyhow::Error::msg("openai chat completion create error").context(e))
+        // let message = &choice[0].message.as_ref().unwrap();
+        // dbg!(message);
+        // Ok(self
+        //     .c
+        //     .post(&self.api)
+        //     .header(CONTENT_TYPE, "application/json")
+        //     .json(&json!({"prompt": query, "history": history}))
+        //     .send()
+        //     .await?
+        //     .json::<GLMResponse>()
+        //     .await?)
     }
 
     // pub fn queue_consumer(&mut self, mp: Arc<MP>, mut chat_mgr: ChatMgr) {
