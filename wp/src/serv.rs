@@ -105,13 +105,14 @@ pub async fn serv() {
             }),
         )
         .leptos_routes_with_context(
-            leptos_options.clone(),
+            &leptos_options,
             routes,
             move |cx| provide_context(cx, mp_l.clone()),
             |cx| view! { cx, <App/> },
         )
         .fallback(file_and_error_handler)
-        .layer(Extension(Arc::new(leptos_options)))
+        .with_state(leptos_options)
+        // .layer(Extension(Arc::new(leptos_options)))
         .layer(Extension(chat_mgr))
         .layer(Extension(Arc::new(serv_conf)))
         .layer(Extension(amp))

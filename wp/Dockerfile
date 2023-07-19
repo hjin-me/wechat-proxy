@@ -1,4 +1,4 @@
-FROM hjin/leptos-build as builder
+FROM hjin/leptos-build:2023063010064505b9e9 as builder
 WORKDIR /build
 COPY . .
 RUN cargo leptos build --release
