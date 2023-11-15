@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>登陆</title>
+</head>
+<body>
+<div>企业微信点击右上角，在内置浏览器打开</div>
+<h2>点击登录：</h2>
+<pre><a id="login" target="_blank" rel="noopener"
+        href=""></a>
+</pre>
+<h3>点击上方链接登录，没有显示就出了问题</h3>
+</body>
+<script>
+    (() => {
+        let h = window.location.search;
+        let d = "dtxuexi://appclient/page/study_feeds?url=" + h;
+        let el = document.querySelector("#login");
+        el.href = d;
+        el.innerHTML = d;
+    })();
+</script>
+</html>

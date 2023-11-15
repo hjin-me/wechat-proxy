@@ -87,6 +87,7 @@ pub async fn serv() {
             "/wccb",
             get(backend::api::validate_url).post(backend::api::on_message),
         )
+        .route("/xx", get(backend::xx::xx_app_caller))
         .route("/cgi-bin/message/send", post(backend::api::message_send))
         .route("/cgi-bin/media/upload", post(backend::api::media_upload))
         .route(
